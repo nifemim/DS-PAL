@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}DS-PAL - Analysis{% endblock %}
+{% block content %}
+<div id="analysis-detail"
+     hx-get="/api/saved/{{ analysis_id }}"
+     hx-trigger="load"
+     hx-indicator="#analysis-spinner">
+</div>
+<div id="analysis-spinner" class="htmx-indicator">
+    <p aria-busy="true">Loading analysis...</p>
+</div>
+{% endblock %}

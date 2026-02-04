@@ -1,0 +1,35 @@
+{% if analyses %}
+<div class="saved-grid">
+    {% for a in analyses %}
+    <article class="saved-card">
+        <h4>{{ a.title }}</h4>
+        <p class="meta">
+            <span class="source-badge">{{ a.dataset_source }}</span>
+            {{ a.dataset_name }}
+        </p>
+        <p class="meta">
+            {{ a.num_rows }} rows &times; {{ a.num_columns }} features
+            &bull; {{ a.analysis_config.get("algorithm", "unknown") | upper }}
+            {% if a.analysis_result.get("silhouette_score") is not none %}
+            &bull; Silhouette: {{ "%.3f"|format(a.analysis_result.silhouette_score) }}
+            {% endif %}
+        </p>
+        <p class="meta">Saved: {{ a.created_at }}</p>
+        <div class="actions">
+            <a href="/analysis/{{ a.id }}" role="button" class="outline">View</a>
+            <button class="outline secondary"
+                    hx-delete="/api/saved/{{ a.id }}"
+                    hx-target="closest article"
+                    hx-swap="outerHTML"
+                    hx-confirm="Delete this analysis?">
+                Delete
+            </button>
+        </div>
+    </article>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+    <p>No saved analyses yet. <a href="/">Search for a dataset</a> to get started.</p>
+</div>
+{% endif %}

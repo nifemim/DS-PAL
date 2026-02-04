@@ -1,0 +1,76 @@
+<h2>{{ analysis.title }}</h2>
+
+<!-- Summary stats -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="value">{{ analysis.n_clusters }}</div>
+        <div class="label">Clusters Found</div>
+    </div>
+    <div class="stat-card">
+        <div class="value">{{ "%.3f"|format(analysis.silhouette_score) if analysis.silhouette_score is not none else "N/A" }}</div>
+        <div class="label">Silhouette Score</div>
+    </div>
+    <div class="stat-card">
+        <div class="value">{{ analysis.num_rows }}</div>
+        <div class="label">Data Points</div>
+    </div>
+    <div class="stat-card">
+        <div class="value">{{ analysis.feature_names|length }}</div>
+        <div class="label">Features Used</div>
+    </div>
+    <div class="stat-card">
+        <div class="value">{{ analysis.anomaly_labels|select("equalto", 1)|list|length }}</div>
+        <div class="label">Anomalies</div>
+    </div>
+</div>
+
+<!-- Cluster profiles -->
+<details open>
+    <summary><strong>Cluster Profiles</strong></summary>
+    <div class="cluster-profiles">
+        {% for profile in analysis.cluster_profiles %}
+        <div class="cluster-profile">
+            <h4>Cluster {{ profile.cluster_id }}
+                {% if profile.cluster_id == -1 %}(Noise){% endif %}
+                — {{ profile.size }} samples ({{ profile.percentage }}%)
+            </h4>
+            {% if profile.top_features %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Feature</th>
+                        <th>Cluster Mean</th>
+                        <th>Overall Mean</th>
+                        <th>Deviation</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for feat in profile.top_features %}
+                    <tr>
+                        <td>{{ feat.feature }}</td>
+                        <td>{{ feat.cluster_mean }}</td>
+                        <td>{{ feat.overall_mean }}</td>
+                        <td>{{ feat.z_deviation }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</details>
+
+<!-- Charts -->
+<h3>Visualizations</h3>
+{% include "partials/cluster_charts.html" %}
+
+<!-- Save button -->
+<div style="margin-top: 2rem; text-align: center;">
+    <button hx-post="/api/analysis/{{ analysis.id }}/save"
+            hx-target="#save-status"
+            hx-swap="innerHTML">
+        Save Analysis
+    </button>
+    <div id="save-status" style="margin-top: 1rem;"></div>
+</div>

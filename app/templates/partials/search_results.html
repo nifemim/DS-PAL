@@ -1,0 +1,35 @@
+<h3>Results for "{{ query }}" ({{ results|length }} found)</h3>
+
+{% if results %}
+<div class="dataset-grid">
+    {% for ds in results %}
+    <article class="dataset-card">
+        <span class="source-badge">{{ ds.source }}</span>
+        <h4>{{ ds.name }}</h4>
+        {% if ds.description %}
+        <p>{{ ds.description[:150] }}{% if ds.description|length > 150 %}...{% endif %}</p>
+        {% endif %}
+        <p class="meta">
+            {% if ds.size %}Size: {{ ds.size }} &bull; {% endif %}
+            Format: {{ ds.format or "CSV" }}
+        </p>
+        {% if ds.tags %}
+        <p class="meta">Tags: {{ ds.tags|join(", ") }}</p>
+        {% endif %}
+        <button hx-post="/api/dataset/preview"
+                hx-target="#dataset-preview"
+                hx-indicator="#preview-spinner"
+                hx-vals='{"source": "{{ ds.source }}", "dataset_id": "{{ ds.dataset_id }}", "name": "{{ ds.name|e }}", "url": "{{ ds.url|e }}"}'>
+            Select Dataset
+        </button>
+    </article>
+    {% endfor %}
+</div>
+<div id="preview-spinner" class="htmx-indicator">
+    <p aria-busy="true">Loading dataset preview...</p>
+</div>
+{% else %}
+<div class="empty-state">
+    <p>No datasets found. Try a different search term.</p>
+</div>
+{% endif %}

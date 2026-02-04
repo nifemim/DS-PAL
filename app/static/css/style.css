@@ -1,0 +1,204 @@
+/* DS-PAL custom styles */
+
+/* HTMX loading indicator */
+.htmx-indicator {
+    display: none;
+}
+.htmx-request .htmx-indicator,
+.htmx-request.htmx-indicator {
+    display: block;
+}
+
+/* Search results grid */
+.dataset-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.dataset-card {
+    border: 1px solid var(--pico-muted-border-color);
+    border-radius: var(--pico-border-radius);
+    padding: 1rem;
+    transition: border-color 0.2s;
+}
+
+.dataset-card:hover {
+    border-color: var(--pico-primary);
+}
+
+.dataset-card h4 {
+    margin-bottom: 0.5rem;
+}
+
+.dataset-card .source-badge {
+    display: inline-block;
+    font-size: 0.75rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 1rem;
+    background: var(--pico-primary-background);
+    color: var(--pico-primary-inverse);
+    margin-bottom: 0.5rem;
+}
+
+.dataset-card .meta {
+    font-size: 0.85rem;
+    color: var(--pico-muted-color);
+}
+
+/* Preview table */
+.preview-table-wrapper {
+    overflow-x: auto;
+    margin: 1rem 0;
+}
+
+/* Analysis config form */
+.config-form {
+    margin-top: 1rem;
+}
+
+.column-select {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid var(--pico-muted-border-color);
+    border-radius: var(--pico-border-radius);
+    padding: 0.5rem;
+}
+
+.column-select label {
+    display: block;
+    margin-bottom: 0.25rem;
+}
+
+/* Charts grid */
+.charts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(500px, 1fr));
+    gap: 1.5rem;
+    margin-top: 1rem;
+}
+
+.chart-container {
+    border: 1px solid var(--pico-muted-border-color);
+    border-radius: var(--pico-border-radius);
+    padding: 1rem;
+}
+
+.chart-container h4 {
+    margin-bottom: 0.5rem;
+}
+
+/* Cluster profiles */
+.cluster-profiles {
+    margin-top: 1rem;
+}
+
+.cluster-profile {
+    margin-bottom: 1rem;
+    padding: 1rem;
+    border-left: 4px solid var(--pico-primary);
+    background: var(--pico-card-background-color);
+}
+
+/* Stats summary */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1rem;
+    margin: 1rem 0;
+}
+
+.stat-card {
+    text-align: center;
+    padding: 1rem;
+    border: 1px solid var(--pico-muted-border-color);
+    border-radius: var(--pico-border-radius);
+}
+
+.stat-card .value {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: var(--pico-primary);
+}
+
+.stat-card .label {
+    font-size: 0.85rem;
+    color: var(--pico-muted-color);
+}
+
+/* Saved analyses list */
+.saved-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 1rem;
+}
+
+.saved-card {
+    border: 1px solid var(--pico-muted-border-color);
+    border-radius: var(--pico-border-radius);
+    padding: 1rem;
+}
+
+.saved-card .actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+/* Empty state */
+.empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--pico-muted-color);
+}
+
+/* Error message */
+.error-message {
+    padding: 1rem;
+    border-left: 4px solid var(--pico-del-color);
+    background: color-mix(in srgb, var(--pico-del-color) 10%, transparent);
+    border-radius: var(--pico-border-radius);
+    margin: 1rem 0;
+}
+
+/* Success message */
+.success-message {
+    padding: 1rem;
+    border-left: 4px solid var(--pico-ins-color);
+    background: color-mix(in srgb, var(--pico-ins-color) 10%, transparent);
+    border-radius: var(--pico-border-radius);
+    margin: 1rem 0;
+}
+
+/* Source badge (standalone, outside cards) */
+.source-badge {
+    display: inline-block;
+    font-size: 0.75rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 1rem;
+    background: var(--pico-primary-background);
+    color: var(--pico-primary-inverse);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .dataset-grid {
+        grid-template-columns: 1fr;
+    }
+    .charts-grid {
+        grid-template-columns: 1fr;
+    }
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .saved-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 480px) {
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+}

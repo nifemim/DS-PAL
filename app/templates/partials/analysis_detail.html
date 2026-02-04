@@ -1,0 +1,104 @@
+<h2>{{ analysis.title }}</h2>
+<p>
+    <span class="source-badge">{{ analysis.dataset_source }}</span>
+    {{ analysis.dataset_name }}
+    {% if analysis.dataset_url %}
+    &bull; <a href="{{ analysis.dataset_url }}" target="_blank">Source</a>
+    {% endif %}
+</p>
+
+<!-- Summary stats -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="value">{{ analysis.analysis_result.get("n_clusters", "N/A") }}</div>
+        <div class="label">Clusters</div>
+    </div>
+    <div class="stat-card">
+        <div class="value">
+            {% if analysis.analysis_result.get("silhouette_score") is not none %}
+                {{ "%.3f"|format(analysis.analysis_result.silhouette_score) }}
+            {% else %}
+                N/A
+            {% endif %}
+        </div>
+        <div class="label">Silhouette</div>
+    </div>
+    <div class="stat-card">
+        <div class="value">{{ analysis.num_rows }}</div>
+        <div class="label">Data Points</div>
+    </div>
+    <div class="stat-card">
+        <div class="value">{{ analysis.num_columns }}</div>
+        <div class="label">Features</div>
+    </div>
+</div>
+
+<!-- Config -->
+<details>
+    <summary>Analysis Configuration</summary>
+    <table>
+        <tbody>
+            <tr><td>Algorithm</td><td>{{ analysis.analysis_config.get("algorithm", "N/A") | upper }}</td></tr>
+            {% for key, val in analysis.analysis_config.get("params", {}).items() %}
+            <tr><td>{{ key }}</td><td>{{ val }}</td></tr>
+            {% endfor %}
+            <tr><td>Columns</td><td>{{ analysis.analysis_config.get("columns", [])|join(", ") }}</td></tr>
+        </tbody>
+    </table>
+</details>
+
+<!-- Cluster profiles -->
+{% if analysis.analysis_result.get("cluster_profiles") %}
+<details open>
+    <summary><strong>Cluster Profiles</strong></summary>
+    <div class="cluster-profiles">
+        {% for profile in analysis.analysis_result.cluster_profiles %}
+        <div class="cluster-profile">
+            <h4>Cluster {{ profile.cluster_id }}
+                — {{ profile.size }} samples ({{ profile.percentage }}%)
+            </h4>
+            {% if profile.top_features %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Feature</th>
+                        <th>Cluster Mean</th>
+                        <th>Overall Mean</th>
+                        <th>Deviation</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for feat in profile.top_features %}
+                    <tr>
+                        <td>{{ feat.feature }}</td>
+                        <td>{{ feat.cluster_mean }}</td>
+                        <td>{{ feat.overall_mean }}</td>
+                        <td>{{ feat.z_deviation }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</details>
+{% endif %}
+
+<!-- Charts (re-rendered from stored JSON) -->
+{% if analysis.charts %}
+<h3>Visualizations</h3>
+<div class="charts-grid">
+    {% for chart in analysis.charts %}
+    <div class="chart-container">
+        <h4>{{ chart.title }}</h4>
+        <div data-plotly='{{ chart.plotly_json }}' style="width:100%; min-height:400px;">
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<div style="margin-top: 2rem;">
+    <a href="/saved" role="button" class="outline">&larr; Back to Saved Analyses</a>
+</div>

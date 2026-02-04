@@ -1,0 +1,10 @@
+<div class="charts-grid">
+    {% for chart in charts %}
+    <div class="chart-container">
+        <h4>{{ chart.title }}</h4>
+        <div data-plotly='{{ chart.plotly_json }}' style="width:100%; min-height:400px;">
+            {{ chart.html|safe }}
+        </div>
+    </div>
+    {% endfor %}
+</div>

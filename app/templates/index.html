@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}DS-PAL - Search Datasets{% endblock %}
+{% block content %}
+<section>
+    <h1>Find & Analyze Datasets</h1>
+    <p>Search across Kaggle, data.gov, UCI ML Repository, and HuggingFace for public datasets.</p>
+
+    <form hx-post="/api/search"
+          hx-target="#search-results"
+          hx-indicator="#search-spinner">
+        <fieldset role="group">
+            <input type="search"
+                   name="query"
+                   placeholder="e.g., air quality in California"
+                   required
+                   minlength="2"
+                   aria-label="Search datasets">
+            <button type="submit">Search</button>
+        </fieldset>
+    </form>
+</section>
+
+<section id="search-results">
+    <!-- HTMX swaps search results here -->
+</section>
+
+<section id="dataset-preview">
+    <!-- HTMX swaps dataset preview + config form here -->
+</section>
+
+<section id="analysis-results">
+    <!-- HTMX swaps analysis results + charts here -->
+</section>
+
+<div id="search-spinner" class="htmx-indicator">
+    <p aria-busy="true">Searching datasets...</p>
+</div>
+{% endblock %}

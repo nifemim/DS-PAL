@@ -5,12 +5,15 @@ A dataset analysis platform with clustering, anomaly detection, and interactive 
 ## Features
 
 **Web Application**
-- Search datasets from Kaggle, HuggingFace, UCI ML Repository, and Data.gov
-- Preview dataset structure and sample data
-- Run clustering analysis (K-Means, DBSCAN, Hierarchical)
+- Search datasets from Kaggle, HuggingFace, and Data.gov
+- Preview dataset structure with column classification and cardinality info
+- Automatic categorical column encoding (one-hot for low cardinality, label encoding for high cardinality)
+- Toggle categorical columns on/off with encoding method badges in the UI
+- Run clustering analysis (K-Means, DBSCAN, Hierarchical) on numeric and categorical data
 - Detect anomalies with Isolation Forest
 - Interactive Plotly visualizations (2D/3D scatter, parallel coordinates, heatmaps)
-- Save and manage analysis results
+- Transformation notices showing which columns were encoded and how
+- Save and manage analysis results with encoding metadata
 
 **CLI Ticket Manager**
 - Track bugs and tasks with priorities and tags
@@ -99,8 +102,9 @@ Environment variables (see `.env.example`):
 pytest tests/ -v
 
 # Run specific test files
+pytest tests/test_analysis.py -v
+pytest tests/test_dataset_loader.py -v
 pytest tests/test_ticket_service.py -v
-pytest tests/test_ticket_cli.py -v
 ```
 
 ## Project Structure
@@ -128,6 +132,7 @@ app/
 └── main.py               # FastAPI app
 tests/
 ├── test_analysis.py
+├── test_dataset_loader.py
 ├── test_search.py
 ├── test_storage.py
 ├── test_ticket_service.py

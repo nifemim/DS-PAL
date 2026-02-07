@@ -45,6 +45,9 @@ class ColumnInfo(BaseModel):
     non_null_count: int
     null_count: int
     sample_values: List[Any] = []
+    cardinality: Optional[int] = None
+    suggested_encoding: Optional[str] = None  # "one-hot", "label", "boolean", "numeric-coerce", or None
+    is_id_like: bool = False
 
 
 class DatasetPreview(BaseModel):
@@ -56,6 +59,7 @@ class DatasetPreview(BaseModel):
     num_columns: int
     columns: List[ColumnInfo]
     numeric_columns: List[str]
+    categorical_columns: List[str] = []
     sample_rows: List[Dict[str, Any]]
 
 
@@ -103,6 +107,7 @@ class AnalysisOutput(BaseModel):
     correlation_matrix: Dict[str, Dict[str, float]] = {}
     column_stats: Dict[str, Dict[str, Any]] = {}
     feature_names: List[str] = []
+    encoding_info: List[Dict[str, Any]] = []
 
 
 # --- Visualization ---

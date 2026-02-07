@@ -10,52 +10,202 @@ from sklearn.cluster import KMeans, DBSCAN, AgglomerativeClustering
 from sklearn.decomposition import PCA
 from sklearn.ensemble import IsolationForest
 from sklearn.metrics import silhouette_score
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, LabelEncoder
 
 from app.models.schemas import AnalysisOutput, ClusterProfile
 
 logger = logging.getLogger(__name__)
 
 
+def encode_categoricals(
+    df: pd.DataFrame,
+    categorical_columns: List[str],
+    cardinality_threshold: int = 10,
+    max_total_features: int = 100,
+) -> Tuple[pd.DataFrame, List[Dict[str, Any]]]:
+    """Encode categorical columns. Returns encoded DataFrame and encoding metadata."""
+    if not categorical_columns:
+        return pd.DataFrame(index=df.index), []
+
+    encoding_info = []
+    encoded_parts = []
+
+    # Filter to columns that actually exist in the DataFrame
+    cat_cols = [c for c in categorical_columns if c in df.columns]
+    if not cat_cols:
+        return pd.DataFrame(index=df.index), []
+
+    cat_df = df[cat_cols].copy()
+
+    # Drop columns with >50% NaN
+    threshold = len(cat_df) * 0.5
+    valid_cols = [c for c in cat_df.columns if cat_df[c].count() >= threshold]
+    cat_df = cat_df[valid_cols]
+
+    # Process each column
+    one_hot_candidates = []  # (col_name, cardinality)
+
+    for col in cat_df.columns:
+        series = cat_df[col]
+        dtype = series.dtype
+        non_null = series.dropna()
+        nunique = int(non_null.nunique())
+
+        # Skip single-value columns
+        if nunique <= 1:
+            logger.info("Skipping constant column: %s", col)
+            continue
+
+        # Skip ID-like columns (cardinality ratio > 0.9)
+        cardinality_ratio = nunique / len(df) if len(df) > 0 else 0
+        if cardinality_ratio > 0.9:
+            logger.info("Skipping ID-like column: %s (ratio=%.2f)", col, cardinality_ratio)
+            continue
+
+        # Boolean columns: cast to int
+        if dtype == bool or (dtype == object and set(non_null.unique()) <= {True, False}):
+            encoded = series.map({True: 1, False: 0, "True": 1, "False": 0}).fillna(0).astype(int)
+            encoded_parts.append(encoded.to_frame())
+            encoding_info.append({
+                "original_column": col,
+                "encoding_type": "boolean",
+                "new_columns": [col],
+                "cardinality": 2,
+            })
+            continue
+
+        # Numeric-as-string: coerce to float
+        if dtype == object:
+            coerced = pd.to_numeric(non_null, errors="coerce")
+            numeric_ratio = coerced.notna().sum() / len(non_null) if len(non_null) > 0 else 0
+            if numeric_ratio > 0.8:
+                encoded = pd.to_numeric(series, errors="coerce")
+                median_val = encoded.median()
+                encoded = encoded.fillna(median_val)
+                encoded_parts.append(encoded.to_frame())
+                encoding_info.append({
+                    "original_column": col,
+                    "encoding_type": "numeric-coerce",
+                    "new_columns": [col],
+                    "cardinality": nunique,
+                })
+                continue
+
+        # Impute NaN with "MISSING" sentinel
+        series = series.fillna("MISSING")
+
+        # Decide encoding method
+        if nunique <= cardinality_threshold:
+            one_hot_candidates.append((col, nunique, series))
+        else:
+            # Label encoding
+            le = LabelEncoder()
+            encoded = pd.Series(le.fit_transform(series.astype(str)), index=series.index, name=col)
+            encoded_parts.append(encoded.to_frame())
+            encoding_info.append({
+                "original_column": col,
+                "encoding_type": "label",
+                "new_columns": [col],
+                "cardinality": nunique,
+            })
+
+    # Process one-hot candidates, respecting the feature cap
+    # Count features so far
+    current_features = sum(part.shape[1] for part in encoded_parts)
+
+    # Sort one-hot candidates by cardinality descending (downgrade highest first if needed)
+    one_hot_candidates.sort(key=lambda x: x[1], reverse=True)
+
+    for col, nunique, series in one_hot_candidates:
+        # Estimate new columns from one-hot: nunique - 1 (drop_first)
+        new_cols = nunique - 1
+        if current_features + new_cols > max_total_features:
+            # Fall back to label encoding
+            logger.info("Downgrading %s from one-hot to label (would exceed %d features)", col, max_total_features)
+            le = LabelEncoder()
+            encoded = pd.Series(le.fit_transform(series.astype(str)), index=series.index, name=col)
+            encoded_parts.append(encoded.to_frame())
+            encoding_info.append({
+                "original_column": col,
+                "encoding_type": "label",
+                "new_columns": [col],
+                "cardinality": nunique,
+            })
+            current_features += 1
+        else:
+            dummies = pd.get_dummies(series.astype(str), prefix=col, drop_first=True).astype(int)
+            encoded_parts.append(dummies)
+            encoding_info.append({
+                "original_column": col,
+                "encoding_type": "one-hot",
+                "new_columns": dummies.columns.tolist(),
+                "cardinality": nunique,
+            })
+            current_features += dummies.shape[1]
+
+    if not encoded_parts:
+        return pd.DataFrame(index=df.index), encoding_info
+
+    result = pd.concat(encoded_parts, axis=1)
+    return result, encoding_info
+
+
 def preprocess(
     df: pd.DataFrame,
     columns: Optional[List[str]] = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame, List[str]]:
-    """Select numeric columns, handle missing values, scale.
+    categorical_columns: Optional[List[str]] = None,
+) -> Tuple[pd.DataFrame, pd.DataFrame, List[str], List[Dict[str, Any]]]:
+    """Select numeric columns, encode categoricals, handle missing values, scale.
 
-    Returns (original_numeric_df, scaled_df, feature_names).
+    Returns (original_df, scaled_df, feature_names, encoding_info).
     """
+    # Numeric pipeline
     if columns:
         numeric_df = df[columns].select_dtypes(include=["number"])
     else:
         numeric_df = df.select_dtypes(include=["number"])
 
-    feature_names = numeric_df.columns.tolist()
-    if len(feature_names) < 2:
-        raise ValueError(
-            f"Need at least 2 numeric columns for analysis, found {len(feature_names)}"
-        )
-
     # Drop columns with >50% NaN
     threshold = len(numeric_df) * 0.5
     numeric_df = numeric_df.dropna(axis=1, thresh=int(threshold))
-    feature_names = numeric_df.columns.tolist()
-
-    if len(feature_names) < 2:
-        raise ValueError("After dropping columns with >50% missing values, fewer than 2 remain")
 
     # Drop rows that are entirely NaN, then impute remaining NaNs with median
     numeric_df = numeric_df.dropna(how="all")
-    for col in feature_names:
+    numeric_features = numeric_df.columns.tolist()
+    for col in numeric_features:
         median_val = numeric_df[col].median()
         numeric_df[col] = numeric_df[col].fillna(median_val)
 
+    # Categorical pipeline
+    encoding_info: List[Dict[str, Any]] = []
+    if categorical_columns:
+        encoded_df, encoding_info = encode_categoricals(df.loc[numeric_df.index], categorical_columns)
+        if not encoded_df.empty:
+            combined_df = pd.concat([numeric_df, encoded_df], axis=1)
+        else:
+            combined_df = numeric_df
+    else:
+        combined_df = numeric_df
+
+    # Drop zero-variance columns post-encoding
+    variances = combined_df.var()
+    zero_var_cols = variances[variances == 0].index.tolist()
+    if zero_var_cols:
+        logger.info("Dropping zero-variance columns: %s", zero_var_cols)
+        combined_df = combined_df.drop(columns=zero_var_cols)
+
+    feature_names = combined_df.columns.tolist()
+    if len(feature_names) < 2:
+        raise ValueError(
+            f"Need at least 2 features for analysis, found {len(feature_names)}"
+        )
+
     # Scale
     scaler = StandardScaler()
-    scaled_array = scaler.fit_transform(numeric_df)
-    scaled_df = pd.DataFrame(scaled_array, columns=feature_names, index=numeric_df.index)
+    scaled_array = scaler.fit_transform(combined_df)
+    scaled_df = pd.DataFrame(scaled_array, columns=feature_names, index=combined_df.index)
 
-    return numeric_df, scaled_df, feature_names
+    return combined_df, scaled_df, feature_names, encoding_info
 
 
 def reduce_dimensions(
@@ -251,13 +401,14 @@ def run(
     algorithm: str = "kmeans",
     n_clusters: Optional[int] = None,
     columns: Optional[List[str]] = None,
+    categorical_columns: Optional[List[str]] = None,
     contamination: float = 0.05,
 ) -> AnalysisOutput:
     """Run the full analysis pipeline."""
     analysis_id = str(uuid.uuid4())
 
     # 1. Preprocess
-    numeric_df, scaled_df, feature_names = preprocess(df, columns)
+    numeric_df, scaled_df, feature_names, encoding_info = preprocess(df, columns, categorical_columns)
     logger.info("Preprocessed: %d rows x %d features", len(numeric_df), len(feature_names))
 
     # 2. PCA
@@ -300,4 +451,5 @@ def run(
         correlation_matrix=corr_matrix,
         column_stats=col_stats,
         feature_names=feature_names,
+        encoding_info=encoding_info,
     )

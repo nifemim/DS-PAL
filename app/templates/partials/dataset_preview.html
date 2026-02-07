@@ -1,6 +1,6 @@
 <h3>Dataset Preview: {{ preview.name }}</h3>
 <p>{{ preview.num_rows }} rows &times; {{ preview.num_columns }} columns
-    ({{ preview.numeric_columns|length }} numeric)</p>
+    ({{ preview.numeric_columns|length }} numeric{% if preview.categorical_columns %}, {{ preview.categorical_columns|length }} categorical{% endif %})</p>
 
 <!-- Column info -->
 <details>
@@ -86,7 +86,7 @@
     <small>5% — proportion of data expected to be anomalous</small>
 
     <fieldset>
-        <legend>Select Columns (numeric only)</legend>
+        <legend>Numeric Columns</legend>
         <div class="column-select">
             {% for col in preview.numeric_columns %}
             <label>
@@ -96,6 +96,32 @@
             {% endfor %}
         </div>
     </fieldset>
+
+    {% if preview.categorical_columns %}
+    <fieldset>
+        <legend>Categorical Columns (will be encoded)</legend>
+        <div class="column-select">
+            {% for col in preview.columns %}
+                {% if col.name in preview.categorical_columns %}
+                <label>
+                    <input type="checkbox" name="categorical_columns" value="{{ col.name }}" checked>
+                    {{ col.name }}
+                    <small>{{ col.cardinality }} unique — {{ col.suggested_encoding }}</small>
+                </label>
+                {% endif %}
+            {% endfor %}
+            {% for col in preview.columns %}
+                {% if col.is_id_like %}
+                <label class="disabled">
+                    <input type="checkbox" disabled>
+                    {{ col.name }}
+                    <small>excluded (ID-like, {{ col.cardinality }} unique)</small>
+                </label>
+                {% endif %}
+            {% endfor %}
+        </div>
+    </fieldset>
+    {% endif %}
 
     <button type="submit">Run Analysis</button>
 </form>

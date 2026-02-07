@@ -2,7 +2,7 @@
 <p>
     <span class="source-badge">{{ preview.source }}</span>
     {{ preview.num_rows }} rows &times; {{ preview.num_columns }} columns
-    ({{ preview.numeric_columns|length }} numeric)
+    ({{ preview.numeric_columns|length }} numeric{% if preview.categorical_columns %}, {{ preview.categorical_columns|length }} categorical{% endif %})
 </p>
 
 <!-- Column info -->
@@ -16,6 +16,7 @@
                     <th>Type</th>
                     <th>Non-null</th>
                     <th>Missing</th>
+                    <th>Encoding</th>
                     <th>Sample Values</th>
                 </tr>
             </thead>
@@ -26,6 +27,16 @@
                     <td><code>{{ col.dtype }}</code></td>
                     <td>{{ col.non_null_count }}</td>
                     <td>{{ col.null_count }}</td>
+                    <td>
+                        {% if col.suggested_encoding %}
+                            <mark>{{ col.suggested_encoding }}</mark>
+                            {% if col.cardinality %}<small>({{ col.cardinality }} unique)</small>{% endif %}
+                        {% elif col.is_id_like %}
+                            <small>excluded (ID-like)</small>
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
                     <td>{{ col.sample_values[:3]|join(", ") }}{% if col.sample_values|length > 3 %}...{% endif %}</td>
                 </tr>
                 {% endfor %}

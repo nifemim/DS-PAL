@@ -24,6 +24,7 @@ async def run_analysis(
     algorithm: str = Form("kmeans"),
     n_clusters: Optional[int] = Form(None),
     columns: List[str] = Form([]),
+    categorical_columns: List[str] = Form([]),
     contamination: float = Form(0.05),
 ):
     """Run ML analysis on a dataset. Returns HTMX partial with results."""
@@ -45,6 +46,7 @@ async def run_analysis(
                 algorithm=algorithm,
                 n_clusters=n_clusters if n_clusters and n_clusters >= 2 else None,
                 columns=columns if columns else None,
+                categorical_columns=categorical_columns if categorical_columns else None,
                 contamination=contamination,
             ),
         )

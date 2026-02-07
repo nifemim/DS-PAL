@@ -30,6 +30,21 @@ def _cache_path(source: str, dataset_id: str) -> Path:
     return Path(settings.cache_dir) / f"{source}_{safe_id}"
 
 
+def _validate_content(content: bytes, url: str) -> None:
+    """Check that downloaded content is actual data, not HTML/XML error pages."""
+    head = content[:500].strip().lower()
+    if head.startswith(b"<!doctype html") or head.startswith(b"<html"):
+        raise ValueError(
+            "The URL returned an HTML page instead of a data file. "
+            "This dataset may not have a direct download link."
+        )
+    if head.startswith(b"<?xml"):
+        raise ValueError(
+            "The URL returned XML data which is not a supported format. "
+            "This dataset may require a different format."
+        )
+
+
 async def download_dataset(source: str, dataset_id: str, url: str) -> Path:
     """Download a dataset file to the cache directory. Returns path to the data file."""
     cache_dir = _cache_path(source, dataset_id)
@@ -44,8 +59,12 @@ async def download_dataset(source: str, dataset_id: str, url: str) -> Path:
 
     if source == "kaggle":
         return await _download_kaggle(dataset_id, cache_dir)
+    elif source == "huggingface":
+        return await _download_huggingface(dataset_id, cache_dir)
+    elif source == "uci":
+        return await _download_uci(dataset_id, cache_dir)
 
-    # Generic HTTP download
+    # Generic HTTP download (data.gov and others)
     async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
         resp = await client.get(url, headers={"Accept": "text/csv,application/json,*/*"})
         resp.raise_for_status()
@@ -56,6 +75,9 @@ async def download_dataset(source: str, dataset_id: str, url: str) -> Path:
                 f"Dataset too large ({content_length / 1024 / 1024:.1f}MB). "
                 f"Maximum is {settings.max_file_size_mb}MB."
             )
+
+        # Validate content is actual data, not an error page
+        _validate_content(resp.content, url)
 
         content_type = resp.headers.get("content-type", "")
 
@@ -101,6 +123,78 @@ async def _download_kaggle(dataset_id: str, cache_dir: Path) -> Path:
             return max(files, key=lambda f: f.stat().st_size)
 
     raise FileNotFoundError(f"No supported data files found in Kaggle download for {dataset_id}")
+
+
+async def _download_huggingface(dataset_id: str, cache_dir: Path) -> Path:
+    """Download from HuggingFace via the datasets-server parquet API."""
+    api_url = f"https://datasets-server.huggingface.co/parquet?dataset={dataset_id}"
+    headers = {}
+    if settings.huggingface_token:
+        headers["Authorization"] = f"Bearer {settings.huggingface_token}"
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.get(api_url, headers=headers)
+        resp.raise_for_status()
+        data = resp.json()
+
+    parquet_files = data.get("parquet_files", [])
+    if not parquet_files:
+        raise ValueError(
+            f"No parquet files available for HuggingFace dataset '{dataset_id}'. "
+            "The dataset may not be converted to parquet yet."
+        )
+
+    # Prefer "train" split, fall back to first available
+    target = next((f for f in parquet_files if f["split"] == "train"), parquet_files[0])
+    file_url = target["url"]
+    file_size = target.get("size", 0)
+
+    if file_size > MAX_FILE_BYTES:
+        raise ValueError(
+            f"Dataset too large ({file_size / 1024 / 1024:.1f}MB). "
+            f"Maximum is {settings.max_file_size_mb}MB."
+        )
+
+    async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
+        resp = await client.get(file_url, headers=headers)
+        resp.raise_for_status()
+
+    file_path = cache_dir / "data.parquet"
+    file_path.write_bytes(resp.content)
+    logger.info("Downloaded HuggingFace %s to %s (%d bytes)", dataset_id, file_path, len(resp.content))
+    return file_path
+
+
+async def _download_uci(dataset_id: str, cache_dir: Path) -> Path:
+    """Download from UCI ML Repository via static zip URL."""
+    base_url = f"https://archive.ics.uci.edu/static/public/{dataset_id}"
+
+    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+        # Try the base path with .zip suffix and without
+        for url in [f"{base_url}.zip", base_url]:
+            try:
+                resp = await client.get(url)
+                if resp.status_code != 200:
+                    continue
+                content_type = resp.headers.get("content-type", "")
+                # Accept zip or octet-stream responses
+                if "zip" in content_type or "octet-stream" in content_type:
+                    if len(resp.content) > MAX_FILE_BYTES:
+                        raise ValueError(
+                            f"Dataset too large ({len(resp.content) / 1024 / 1024:.1f}MB). "
+                            f"Maximum is {settings.max_file_size_mb}MB."
+                        )
+                    return _extract_zip(resp.content, cache_dir)
+            except ValueError:
+                raise
+            except Exception as e:
+                logger.debug("UCI download attempt %s failed: %s", url, e)
+                continue
+
+    raise ValueError(
+        f"Could not download UCI dataset '{dataset_id}'. "
+        "The UCI repository may not have a direct download available for this dataset."
+    )
 
 
 def _extract_zip(content: bytes, cache_dir: Path) -> Path:

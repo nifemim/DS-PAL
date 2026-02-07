@@ -2,11 +2,19 @@
 
 /* HTMX loading indicator */
 .htmx-indicator {
-    display: none;
+    display: none !important;
+    opacity: 0;
+    transition: opacity 200ms ease-in;
 }
 .htmx-request .htmx-indicator,
 .htmx-request.htmx-indicator {
-    display: block;
+    display: block !important;
+    opacity: 1;
+}
+
+/* Ensure aria-busy elements inside hidden indicators don't show spinners */
+.htmx-indicator [aria-busy="true"] {
+    background-image: none;
 }
 
 /* Search results grid */

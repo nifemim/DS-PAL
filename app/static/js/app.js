@@ -1,5 +1,15 @@
 /* DS-PAL client-side JavaScript */
 
+// Clear any stuck htmx-request classes on page load
+document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll(".htmx-request").forEach(function (el) {
+        el.classList.remove("htmx-request");
+    });
+    document.querySelectorAll(".htmx-indicator").forEach(function (el) {
+        el.style.display = "none";
+    });
+});
+
 // Re-render Plotly charts after HTMX swaps content
 document.body.addEventListener("htmx:afterSwap", function (event) {
     var charts = event.detail.target.querySelectorAll("[data-plotly]");

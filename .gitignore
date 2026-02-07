@@ -16,6 +16,8 @@ build/
 
 # Database
 *.db
+*.db-shm
+*.db-wal
 
 # Cache
 .cache/
@@ -23,6 +25,7 @@ build/
 # IDE
 .idea/
 .vscode/
+.claude/
 *.swp
 *.swo
 *~

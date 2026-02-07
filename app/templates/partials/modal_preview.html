@@ -1,0 +1,70 @@
+<h4>{{ preview.name }}</h4>
+<p>
+    <span class="source-badge">{{ preview.source }}</span>
+    {{ preview.num_rows }} rows &times; {{ preview.num_columns }} columns
+    ({{ preview.numeric_columns|length }} numeric)
+</p>
+
+<!-- Column info -->
+<details open>
+    <summary>Column Details</summary>
+    <div class="preview-table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Column</th>
+                    <th>Type</th>
+                    <th>Non-null</th>
+                    <th>Missing</th>
+                    <th>Sample Values</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for col in preview.columns %}
+                <tr>
+                    <td>{{ col.name }}</td>
+                    <td><code>{{ col.dtype }}</code></td>
+                    <td>{{ col.non_null_count }}</td>
+                    <td>{{ col.null_count }}</td>
+                    <td>{{ col.sample_values[:3]|join(", ") }}{% if col.sample_values|length > 3 %}...{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</details>
+
+<!-- Sample rows -->
+<details open>
+    <summary>Sample Rows (first 5)</summary>
+    <div class="preview-table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    {% for col in preview.columns %}
+                    <th>{{ col.name }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in preview.sample_rows[:5] %}
+                <tr>
+                    {% for col in preview.columns %}
+                    <td>{{ row[col.name] }}</td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</details>
+
+<footer>
+    <button class="secondary" onclick="document.getElementById('preview-modal').close()">Close</button>
+    <button hx-post="/api/dataset/preview"
+            hx-target="#dataset-preview"
+            hx-vals='{"source": "{{ preview.source }}", "dataset_id": "{{ preview.dataset_id }}", "name": "{{ preview.name|e }}", "url": "{{ preview.url|e }}"}'
+            onclick="document.getElementById('preview-modal').close()">
+        Proceed to Analysis
+    </button>
+</footer>

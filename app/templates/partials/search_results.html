@@ -16,17 +16,15 @@
         {% if ds.tags %}
         <p class="meta">Tags: {{ ds.tags|join(", ") }}</p>
         {% endif %}
-        <button hx-post="/api/dataset/preview"
-                hx-target="#dataset-preview"
-                hx-indicator="#preview-spinner"
-                hx-vals='{"source": "{{ ds.source }}", "dataset_id": "{{ ds.dataset_id }}", "name": "{{ ds.name|e }}", "url": "{{ ds.url|e }}"}'>
+        <button hx-post="/api/dataset/modal-preview"
+                hx-target="#modal-content"
+                hx-indicator="#modal-spinner"
+                hx-vals='{"source": "{{ ds.source }}", "dataset_id": "{{ ds.dataset_id }}", "name": "{{ ds.name|e }}", "url": "{{ ds.url|e }}"}'
+                onclick="document.getElementById('preview-modal').showModal()">
             Select Dataset
         </button>
     </article>
     {% endfor %}
-</div>
-<div id="preview-spinner" class="htmx-indicator">
-    <p aria-busy="true">Loading dataset preview...</p>
 </div>
 {% else %}
 <div class="empty-state">

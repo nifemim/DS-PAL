@@ -189,6 +189,36 @@
     color: var(--pico-primary-inverse);
 }
 
+/* Modal styles */
+#preview-modal {
+    max-width: 900px;
+    width: 90%;
+}
+
+#preview-modal article {
+    max-height: 85vh;
+    overflow-y: auto;
+}
+
+#preview-modal header {
+    position: sticky;
+    top: 0;
+    background: var(--pico-background-color);
+    z-index: 1;
+}
+
+#preview-modal footer {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+    margin-top: 1rem;
+}
+
+#modal-content .preview-table-wrapper {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
     .dataset-grid {

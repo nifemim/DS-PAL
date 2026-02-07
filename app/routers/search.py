@@ -70,3 +70,29 @@ async def preview_dataset(
             "partials/error.html",
             {"request": request, "message": f"Failed to load dataset: {str(e)}"},
         )
+
+
+@router.post("/dataset/modal-preview")
+async def modal_preview_dataset(
+    request: Request,
+    source: str = Form(...),
+    dataset_id: str = Form(...),
+    name: str = Form(""),
+    url: str = Form(""),
+):
+    """Download and preview a dataset in modal format (without analysis form)."""
+    try:
+        file_path = await download_dataset(source, dataset_id, url)
+        df = load_dataframe(file_path)
+        preview = build_preview(df, source, dataset_id, name, url)
+
+        return templates.TemplateResponse(
+            "partials/modal_preview.html",
+            {"request": request, "preview": preview},
+        )
+    except Exception as e:
+        logger.error("Modal preview failed for %s/%s: %s", source, dataset_id, e)
+        return templates.TemplateResponse(
+            "partials/error.html",
+            {"request": request, "message": f"Failed to load dataset: {str(e)}"},
+        )

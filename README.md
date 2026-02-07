@@ -29,8 +29,9 @@ cd DS-PAL
 python3 -m venv venv
 source venv/bin/activate
 
-# Install dependencies
+# Install dependencies and register CLI
 pip install -r requirements.txt
+pip install -e .
 
 # Copy environment config
 cp .env.example .env
@@ -50,23 +51,23 @@ python run.py
 
 ```bash
 # Add tickets
-python3 -m app.cli add "Fix the login bug" --priority high --tags "auth,urgent"
-python3 -m app.cli add "Refactor search" -d "Extract common provider logic" -p low
+tickets add "Fix the login bug" --priority high --tags "auth,urgent"
+tickets add "Refactor search" -d "Extract common provider logic" -p low
 
 # List and filter
-python3 -m app.cli list
-python3 -m app.cli list --status open --priority high --tag ui
+tickets list
+tickets list --status open --priority high --tag ui
 
 # View details
-python3 -m app.cli show 1
+tickets show 1
 
 # Update and solve
-python3 -m app.cli update 1 --priority critical --status in_progress
-python3 -m app.cli solve 1 -r "Fixed in commit abc123"
+tickets update 1 --priority critical --status in_progress
+tickets solve 1 -r "Fixed in commit abc123"
 
 # Delete and stats
-python3 -m app.cli delete 1
-python3 -m app.cli stats
+tickets delete 1
+tickets stats
 ```
 
 ## Configuration
@@ -89,11 +90,11 @@ Environment variables (see `.env.example`):
 
 ```bash
 # Run all tests
-python3 -m pytest tests/ -v
+pytest tests/ -v
 
 # Run specific test files
-python3 -m pytest tests/test_ticket_service.py -v
-python3 -m pytest tests/test_ticket_cli.py -v
+pytest tests/test_ticket_service.py -v
+pytest tests/test_ticket_cli.py -v
 ```
 
 ## Project Structure

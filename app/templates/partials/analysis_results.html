@@ -1,5 +1,17 @@
 <h2>{{ analysis.title }}</h2>
 
+{% if analysis.encoding_info %}
+<details open>
+    <summary><strong>Column Transformations Applied</strong></summary>
+    <ul>
+        {% for enc in analysis.encoding_info %}
+        <li><strong>{{ enc.original_column }}</strong>: {{ enc.encoding_type }} encoding
+            ({{ enc.cardinality }} categories{% if enc.new_columns|length > 1 %} &rarr; {{ enc.new_columns|length }} features{% endif %})</li>
+        {% endfor %}
+    </ul>
+</details>
+{% endif %}
+
 <!-- Summary stats -->
 <div class="stats-grid">
     <div class="stat-card">

@@ -50,13 +50,15 @@ async def preview_dataset(
         df = load_dataframe(file_path)
         preview = build_preview(df, source, dataset_id, name, url)
 
-        if len(preview.numeric_columns) < 2:
+        total_usable = len(preview.numeric_columns) + len(preview.categorical_columns)
+        if total_usable < 2:
             return templates.TemplateResponse(
                 "partials/error.html",
                 {
                     "request": request,
-                    "message": "This dataset needs at least 2 numeric columns for clustering analysis. "
-                               f"Found: {len(preview.numeric_columns)} numeric column(s).",
+                    "message": "This dataset needs at least 2 usable columns for clustering analysis. "
+                               f"Found: {len(preview.numeric_columns)} numeric, "
+                               f"{len(preview.categorical_columns)} categorical.",
                 },
             )
 

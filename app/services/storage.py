@@ -21,6 +21,7 @@ async def save_analysis(
             "algorithm": analysis.algorithm,
             "params": analysis.params,
             "columns": analysis.feature_names,
+            "encoding_info": analysis.encoding_info,
         })
         analysis_result = json.dumps({
             "n_clusters": analysis.n_clusters,

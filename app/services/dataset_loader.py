@@ -149,10 +149,60 @@ def load_dataframe(file_path: Path, max_rows: Optional[int] = None) -> pd.DataFr
     return df
 
 
+def _classify_column(series: pd.Series) -> dict:
+    """Classify a column and return encoding metadata.
+
+    Returns dict with keys: cardinality, suggested_encoding, is_id_like.
+    """
+    dtype = series.dtype
+    name = series.name
+    n_rows = len(series)
+    non_null = series.dropna()
+
+    # Numeric columns: no encoding needed
+    if pd.api.types.is_numeric_dtype(dtype):
+        return {"cardinality": None, "suggested_encoding": None, "is_id_like": False}
+
+    # Datetime columns: excluded
+    if pd.api.types.is_datetime64_any_dtype(dtype):
+        return {"cardinality": None, "suggested_encoding": None, "is_id_like": False}
+
+    # Boolean columns
+    if dtype == bool or (dtype == object and set(non_null.unique()) <= {True, False}):
+        return {"cardinality": 2, "suggested_encoding": "boolean", "is_id_like": False}
+
+    # Object/category columns
+    nunique = int(non_null.nunique())
+    cardinality_ratio = nunique / n_rows if n_rows > 0 else 0
+
+    # Single-value: exclude
+    if nunique <= 1:
+        return {"cardinality": nunique, "suggested_encoding": None, "is_id_like": False}
+
+    # ID-like: cardinality ratio > 0.9
+    if cardinality_ratio > 0.9:
+        return {"cardinality": nunique, "suggested_encoding": None, "is_id_like": True}
+
+    # Numeric-as-string: >80% values coerce to numeric
+    if dtype == object:
+        coerced = pd.to_numeric(non_null, errors="coerce")
+        numeric_ratio = coerced.notna().sum() / len(non_null) if len(non_null) > 0 else 0
+        if numeric_ratio > 0.8:
+            return {"cardinality": nunique, "suggested_encoding": "numeric-coerce", "is_id_like": False}
+
+    # Categorical: choose encoding by cardinality
+    if nunique <= 10:
+        return {"cardinality": nunique, "suggested_encoding": "one-hot", "is_id_like": False}
+    else:
+        return {"cardinality": nunique, "suggested_encoding": "label", "is_id_like": False}
+
+
 def build_preview(df: pd.DataFrame, source: str, dataset_id: str,
                   name: str, url: str = "") -> DatasetPreview:
     """Build a DatasetPreview from a DataFrame."""
     columns = []
+    categorical_cols = []
+
     for col in df.columns:
         non_null = int(df[col].count())
         null_count = int(df[col].isna().sum())
@@ -162,13 +212,24 @@ def build_preview(df: pd.DataFrame, source: str, dataset_id: str,
             v.item() if hasattr(v, "item") else v
             for v in sample_vals
         ]
-        columns.append(ColumnInfo(
+
+        classification = _classify_column(df[col])
+
+        col_info = ColumnInfo(
             name=str(col),
             dtype=str(df[col].dtype),
             non_null_count=non_null,
             null_count=null_count,
             sample_values=sample_vals,
-        ))
+            cardinality=classification["cardinality"],
+            suggested_encoding=classification["suggested_encoding"],
+            is_id_like=classification["is_id_like"],
+        )
+        columns.append(col_info)
+
+        # Encodable categorical: has a suggested encoding and is not ID-like
+        if classification["suggested_encoding"] in ("one-hot", "label", "boolean", "numeric-coerce"):
+            categorical_cols.append(str(col))
 
     numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
 
@@ -177,11 +238,11 @@ def build_preview(df: pd.DataFrame, source: str, dataset_id: str,
     sample_rows = []
     for _, row in sample_df.iterrows():
         row_dict = {}
-        for col in sample_df.columns:
-            val = row[col]
+        for col_name in sample_df.columns:
+            val = row[col_name]
             if hasattr(val, "item"):
                 val = val.item()
-            row_dict[str(col)] = val
+            row_dict[str(col_name)] = val
         sample_rows.append(row_dict)
 
     return DatasetPreview(
@@ -193,5 +254,6 @@ def build_preview(df: pd.DataFrame, source: str, dataset_id: str,
         num_columns=len(df.columns),
         columns=columns,
         numeric_columns=numeric_cols,
+        categorical_columns=categorical_cols,
         sample_rows=sample_rows,
     )

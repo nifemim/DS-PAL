@@ -1,29 +1,30 @@
 <h3>Results for "{{ query }}" ({{ results|length }} found)</h3>
 
 {% if results %}
-<div class="dataset-grid">
+<div class="dataset-list">
     {% for ds in results %}
-    <article class="dataset-card">
-        <span class="source-badge">{{ ds.source }}</span>
-        <h4>{{ ds.name }}</h4>
+    <div class="dataset-item">
+        <div class="dataset-item-header">
+            <span class="source-badge">{{ ds.source }}</span>
+            <h4>{{ ds.name }}</h4>
+        </div>
         {% if ds.description %}
-        <p>{{ ds.description[:150] }}{% if ds.description|length > 150 %}...{% endif %}</p>
+        <p class="dataset-item-description">{{ ds.description[:150] }}{% if ds.description|length > 150 %}...{% endif %}</p>
         {% endif %}
-        <p class="meta">
-            {% if ds.size %}Size: {{ ds.size }} &bull; {% endif %}
-            Format: {{ ds.format or "CSV" }}
-        </p>
-        {% if ds.tags %}
-        <p class="meta">Tags: {{ ds.tags|join(", ") }}</p>
-        {% endif %}
-        <button hx-post="/api/dataset/modal-preview"
+        <div class="dataset-item-meta">
+            {% if ds.size %}<span>Size: {{ ds.size }}</span>{% endif %}
+            <span>Format: {{ ds.format or "CSV" }}</span>
+            {% if ds.tags %}<span>Tags: {{ ds.tags|join(", ") }}</span>{% endif %}
+        </div>
+        <button class="dataset-item-action"
+                onclick="document.getElementById('preview-modal').showModal()"
+                hx-post="/api/dataset/modal-preview"
                 hx-target="#modal-content"
                 hx-indicator="#modal-spinner"
-                hx-vals='{"source": "{{ ds.source }}", "dataset_id": "{{ ds.dataset_id }}", "name": "{{ ds.name|e }}", "url": "{{ ds.url|e }}"}'
-                onclick="document.getElementById('preview-modal').showModal()">
+                hx-vals='{"source": "{{ ds.source }}", "dataset_id": "{{ ds.dataset_id }}", "name": "{{ ds.name|e }}", "url": "{{ ds.url|e }}"}'>
             Select Dataset
         </button>
-    </article>
+    </div>
     {% endfor %}
 </div>
 {% else %}

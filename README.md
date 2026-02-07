@@ -114,22 +114,34 @@ app/
 ├── cli/                  # CLI ticket manager
 │   ├── __main__.py       # argparse entry point
 │   ├── tickets.py        # subcommand handlers
+│   ├── _cleanup.py       # ticket cleanup/reformat logic
 │   └── _formatter.py     # output formatting
 ├── models/
 │   └── schemas.py        # Pydantic models
 ├── routers/              # FastAPI routes
 ├── services/
-│   ├── analysis_engine.py
-│   ├── dataset_loader.py
-│   ├── dataset_search.py
+│   ├── analysis_engine.py  # Preprocessing, encoding, clustering
+│   ├── dataset_loader.py   # Download, validate, and load datasets
+│   ├── dataset_search.py   # Fan-out search orchestrator
 │   ├── storage.py
 │   ├── ticket_service.py
 │   ├── visualization.py
-│   └── providers/        # Dataset source providers
+│   └── providers/         # Dataset source providers
+│       ├── base.py        # Abstract base class
+│       ├── datagov_provider.py
+│       ├── huggingface_provider.py
+│       ├── kaggle_provider.py
+│       └── uci_provider.py
 ├── static/               # CSS, JS
 ├── templates/            # Jinja2 templates
 ├── database.py           # SQLite setup
 └── main.py               # FastAPI app
+docs/
+├── plans/                # Implementation plans
+└── solutions/            # Documented solutions (searchable)
+    ├── integration-issues/
+    ├── logic-errors/
+    └── ui-bugs/
 tests/
 ├── test_analysis.py
 ├── test_dataset_loader.py

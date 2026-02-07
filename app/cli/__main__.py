@@ -6,6 +6,7 @@ import sys
 
 from .tickets import (
     handle_add,
+    handle_cleanup,
     handle_delete,
     handle_list,
     handle_show,
@@ -79,6 +80,14 @@ def build_parser() -> argparse.ArgumentParser:
     # stats
     p_stats = sub.add_parser("stats", help="Show ticket statistics")
     p_stats.set_defaults(func=handle_stats)
+
+    # cleanup
+    p_cleanup = sub.add_parser("cleanup", help="Clean up ticket titles and descriptions")
+    p_cleanup.add_argument("ids", type=int, nargs="*", help="Ticket IDs to clean up")
+    p_cleanup.add_argument("--all", action="store_true", help="Clean up all tickets")
+    p_cleanup.add_argument("--dry-run", action="store_true", help="Preview changes without applying")
+    p_cleanup.add_argument("-q", "--quiet", action="store_true", help="Suppress detailed output")
+    p_cleanup.set_defaults(func=handle_cleanup)
 
     return parser
 

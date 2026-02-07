@@ -9,6 +9,7 @@ from app.database import init_db
 from app.models.schemas import TicketCreate, TicketPriority, TicketStatus, TicketUpdate
 from app.services import ticket_service
 
+from ._cleanup import cleanup_ticket, preview_cleanup
 from ._formatter import format_ticket_detail, format_ticket_stats, format_ticket_table
 
 
@@ -126,3 +127,64 @@ def handle_stats(args: Namespace) -> None:
     _ensure_db()
     stats = _run(ticket_service.get_ticket_stats())
     print(format_ticket_stats(stats))
+
+
+def handle_cleanup(args: Namespace) -> None:
+    _ensure_db()
+
+    # Determine which tickets to clean up
+    if args.all:
+        tickets = _run(ticket_service.list_tickets())
+        if not tickets:
+            print("No tickets to clean up.")
+            return
+        ticket_ids = [t.id for t in tickets]
+    elif args.ids:
+        ticket_ids = args.ids
+    else:
+        print("Error: specify ticket IDs or use --all", file=sys.stderr)
+        sys.exit(1)
+
+    # Process each ticket
+    cleaned_count = 0
+    for ticket_id in ticket_ids:
+        ticket = _run(ticket_service.get_ticket(ticket_id))
+        if not ticket:
+            print(f"Warning: ticket #{ticket_id} not found, skipping", file=sys.stderr)
+            continue
+
+        new_title, new_description = cleanup_ticket(ticket.title, ticket.description)
+
+        # Check if any changes needed
+        if new_title == ticket.title and new_description == ticket.description:
+            if not args.quiet:
+                print(f"Ticket #{ticket_id}: no changes needed")
+            continue
+
+        # Show preview
+        if not args.quiet:
+            print(f"\nTicket #{ticket_id}:")
+            print(preview_cleanup(ticket.title, ticket.description))
+
+        # Apply changes unless dry-run
+        if not args.dry_run:
+            update_data = {}
+            if new_title != ticket.title:
+                update_data["title"] = new_title
+            if new_description != ticket.description:
+                update_data["description"] = new_description
+
+            if update_data:
+                data = TicketUpdate(**update_data)
+                _run(ticket_service.update_ticket(ticket_id, data))
+                cleaned_count += 1
+                if not args.quiet:
+                    print(f"  -> Updated ticket #{ticket_id}")
+        else:
+            cleaned_count += 1
+
+    # Summary
+    if args.dry_run:
+        print(f"\nDry run: {cleaned_count} ticket(s) would be updated")
+    else:
+        print(f"\nCleaned up {cleaned_count} ticket(s)")

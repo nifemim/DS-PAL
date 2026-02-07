@@ -68,6 +68,12 @@ tickets solve 1 -r "Fixed in commit abc123"
 # Delete and stats
 tickets delete 1
 tickets stats
+
+# Clean up ticket formatting (reword titles/descriptions)
+tickets cleanup 1              # single ticket
+tickets cleanup 1 2 3          # multiple tickets
+tickets cleanup --all          # all tickets
+tickets cleanup --all --dry-run  # preview changes only
 ```
 
 ## Configuration

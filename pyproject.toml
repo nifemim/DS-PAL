@@ -1,2 +1,11 @@
+[project]
+name = "ds-pal"
+version = "0.1.0"
+description = "Dataset analysis platform with clustering and visualization"
+requires-python = ">=3.9"
+
+[project.scripts]
+tickets = "app.cli.__main__:main"
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

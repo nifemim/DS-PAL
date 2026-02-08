@@ -1,14 +1,18 @@
 """Analysis API routes."""
 import asyncio
 import logging
+import time
 from typing import List, Optional
 
 from fastapi import APIRouter, Request, Form
+from fastapi.responses import HTMLResponse
 
+from app.config import settings
 from app.main import templates
 from app.services.dataset_loader import download_dataset, load_dataframe
 from app.services import analysis_engine
 from app.services.visualization import generate_all
+from app.services.insights import generate_insights
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["analysis"])
@@ -59,6 +63,7 @@ async def run_analysis(
         app.state.pending_analyses[analysis.id] = {
             "analysis": analysis,
             "charts": charts,
+            "created_at": time.time(),
         }
 
         # Evict old entries (TTL-based, 1 hour)
@@ -70,6 +75,7 @@ async def run_analysis(
                 "request": request,
                 "analysis": analysis,
                 "charts": charts,
+                "insights_enabled": settings.insights_enabled,
             },
         )
 
@@ -87,9 +93,38 @@ async def run_analysis(
         )
 
 
+@router.get("/analysis/{analysis_id}/insights")
+async def get_insights(request: Request, analysis_id: str):
+    """Generate LLM insights for an analysis. Returns HTMX partial."""
+    entry = request.app.state.pending_analyses.get(analysis_id)
+    if not entry:
+        return HTMLResponse("")
+
+    analysis = entry["analysis"]
+    narrative = await generate_insights(analysis)
+
+    if narrative is None:
+        return templates.TemplateResponse(
+            "partials/cluster_insights.html",
+            {
+                "request": request,
+                "analysis_id": analysis_id,
+                "narrative": None,
+            },
+        )
+
+    return templates.TemplateResponse(
+        "partials/cluster_insights.html",
+        {
+            "request": request,
+            "analysis_id": analysis_id,
+            "narrative": narrative,
+        },
+    )
+
+
 def _evict_old_pending(app):
     """Remove pending analyses older than 1 hour."""
-    import time
     now = time.time()
     to_remove = []
     for aid, data in app.state.pending_analyses.items():

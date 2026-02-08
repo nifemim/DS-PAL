@@ -1,0 +1,19 @@
+{% if narrative %}
+<p>{{ narrative }}</p>
+<div style="margin-top: 1rem;">
+    <button class="outline secondary"
+            hx-get="/api/analysis/{{ analysis_id }}/insights"
+            hx-target="#cluster-insights"
+            hx-swap="innerHTML">
+        Regenerate
+    </button>
+</div>
+{% else %}
+<p>Insights unavailable.</p>
+<button class="outline secondary"
+        hx-get="/api/analysis/{{ analysis_id }}/insights"
+        hx-target="#cluster-insights"
+        hx-swap="innerHTML">
+    Retry
+</button>
+{% endif %}

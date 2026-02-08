@@ -16,6 +16,15 @@ class Settings(BaseSettings):
     kaggle_key: str = ""
     huggingface_token: str = ""
 
+    # LLM insights
+    llm_provider: str = ""  # "anthropic" or empty to disable
+    anthropic_api_key: str = ""
+    llm_model: str = ""  # optional override; default: claude-haiku-4-5
+
+    @property
+    def insights_enabled(self) -> bool:
+        return self.llm_provider == "anthropic" and bool(self.anthropic_api_key)
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
 

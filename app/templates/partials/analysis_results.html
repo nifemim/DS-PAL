@@ -12,6 +12,15 @@
 </details>
 {% endif %}
 
+{% if insights_enabled %}
+<article id="cluster-insights"
+         hx-get="/api/analysis/{{ analysis.id }}/insights"
+         hx-trigger="load"
+         hx-swap="innerHTML">
+    <p aria-busy="true">Generating insights...</p>
+</article>
+{% endif %}
+
 <!-- Summary stats -->
 <div class="stats-grid">
     <div class="stat-card">

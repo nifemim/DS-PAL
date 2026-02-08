@@ -14,6 +14,7 @@ A dataset analysis platform with clustering, anomaly detection, and interactive 
 - Interactive Plotly visualizations (2D/3D scatter, parallel coordinates, heatmaps)
 - Transformation notices showing which columns were encoded and how
 - Save and manage analysis results with encoding metadata
+- Dark mode with automatic OS preference detection and manual toggle
 
 **CLI Ticket Manager**
 - Track bugs and tasks with priorities and tags

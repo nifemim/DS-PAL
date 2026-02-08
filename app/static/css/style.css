@@ -1,7 +1,9 @@
 /* DS-PAL custom styles */
 
 /* Primary accent color override — soft lavender purple */
-:root {
+:root,
+[data-theme="light"],
+[data-theme="dark"] {
     --pico-primary: #a78bfa;
     --pico-primary-hover: #8b5cf6;
     --pico-primary-focus: rgba(167, 139, 250, 0.5);

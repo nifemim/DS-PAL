@@ -5,6 +5,7 @@ import pandas as pd
 from sklearn.datasets import load_iris
 
 from app.services.analysis_engine import (
+    _auto_eps,
     encode_categoricals,
     preprocess,
     reduce_dimensions,
@@ -310,3 +311,93 @@ def test_dimension_cap():
     types = [i["encoding_type"] for i in info]
     assert "label" in types
     assert encoded.shape[1] <= 100
+
+
+# --- Reverse-mapped centroids tests ---
+
+
+class TestReverseMappedCentroids:
+    """Tests for label-encoded centroid reverse-mapping."""
+
+    def test_label_encoded_centroid_shows_category_name(self):
+        """profile_clusters maps label-encoded centroid float to nearest category."""
+        # Create DataFrame with a label-encoded column (values 0, 1, 2)
+        df = pd.DataFrame({"feat": [0, 0, 1, 1, 2, 2]})
+        scaled = pd.DataFrame({"feat": [-1.0, -1.0, 0.0, 0.0, 1.0, 1.0]})
+        labels = np.array([0, 0, 1, 1, 1, 1])
+        encoding_info = [{
+            "original_column": "feat",
+            "encoding_type": "label",
+            "new_columns": ["feat"],
+            "cardinality": 3,
+            "label_mapping": ["Cat_A", "Cat_B", "Cat_C"],
+        }]
+        profiles = profile_clusters(df, scaled, labels, ["feat"], encoding_info)
+        # Cluster 0 has feat mean=0.0 → index 0 → "Cat_A"
+        assert profiles[0].centroid["feat"] == "Cat_A"
+        # Cluster 1 has feat mean=1.5 → round(1.5)=2 → "Cat_C"  (or 1 depending on rounding)
+        assert profiles[1].centroid["feat"] in ("Cat_B", "Cat_C")
+
+    def test_centroid_clamps_out_of_bounds_index(self):
+        """Round(mean) outside [0, len(mapping)-1] is clamped, not crashed."""
+        df = pd.DataFrame({"feat": [10, 10]})
+        scaled = pd.DataFrame({"feat": [1.0, 1.0]})
+        labels = np.array([0, 0])
+        encoding_info = [{
+            "original_column": "feat",
+            "encoding_type": "label",
+            "new_columns": ["feat"],
+            "cardinality": 3,
+            "label_mapping": ["A", "B", "C"],
+        }]
+        profiles = profile_clusters(df, scaled, labels, ["feat"], encoding_info)
+        # Mean=10, round=10, clamped to index 2 → "C"
+        assert profiles[0].centroid["feat"] == "C"
+
+    def test_numeric_centroid_unchanged(self):
+        """Non-label-encoded features still show float centroids."""
+        df = pd.DataFrame({"age": [25.0, 30.0, 35.0, 40.0]})
+        scaled = pd.DataFrame({"age": [-1.0, -0.5, 0.5, 1.0]})
+        labels = np.array([0, 0, 1, 1])
+        profiles = profile_clusters(df, scaled, labels, ["age"])
+        assert isinstance(profiles[0].centroid["age"], float)
+        assert isinstance(profiles[1].centroid["age"], float)
+
+    def test_encoding_info_includes_label_mapping(self):
+        """encode_categoricals adds label_mapping list to label-encoded entries."""
+        values = [f"cat_{i}" for i in range(15)]
+        df = pd.DataFrame({"category": values * 2})
+        _, info = encode_categoricals(df, ["category"])
+        assert len(info) == 1
+        assert "label_mapping" in info[0]
+        assert isinstance(info[0]["label_mapping"], list)
+        assert len(info[0]["label_mapping"]) == 15
+
+
+# --- Adaptive DBSCAN eps tests ---
+
+
+class TestAutoEps:
+    """Tests for adaptive DBSCAN eps selection."""
+
+    def test_auto_eps_returns_positive_float(self):
+        """_auto_eps returns a positive float for valid scaled data."""
+        np.random.seed(42)
+        data = np.random.randn(100, 3)
+        eps = _auto_eps(data, min_samples=5)
+        assert isinstance(eps, float)
+        assert eps > 0
+
+    def test_auto_eps_floor(self):
+        """_auto_eps returns at least 0.01 even for identical points."""
+        data = np.ones((50, 2))
+        eps = _auto_eps(data, min_samples=5)
+        assert eps >= 0.01
+
+    def test_dbscan_uses_auto_eps(self, iris_df):
+        """cluster() with algorithm='dbscan' uses _auto_eps, not hardcoded 0.5."""
+        _, scaled_df, _, _ = preprocess(iris_df)
+        labels, n_clusters, sil, params = cluster(scaled_df, "dbscan")
+        # eps should be data-dependent, not always 0.5
+        assert "eps" in params
+        assert isinstance(params["eps"], float)

@@ -107,6 +107,7 @@ def encode_categoricals(
                 "encoding_type": "label",
                 "new_columns": [col],
                 "cardinality": nunique,
+                "label_mapping": list(le.classes_),
             })
 
     # Process one-hot candidates, respecting the feature cap
@@ -130,6 +131,7 @@ def encode_categoricals(
                 "encoding_type": "label",
                 "new_columns": [col],
                 "cardinality": nunique,
+                "label_mapping": list(le.classes_),
             })
             current_features += 1
         else:
@@ -250,6 +252,20 @@ def find_optimal_k(scaled_df: pd.DataFrame) -> int:
     return best_k
 
 
+def _auto_eps(scaled_data: np.ndarray, min_samples: int) -> float:
+    """Auto-select DBSCAN eps using median k-nearest-neighbor distance."""
+    from sklearn.neighbors import NearestNeighbors
+
+    k = min(min_samples, len(scaled_data) - 1)
+    nn = NearestNeighbors(n_neighbors=k)
+    nn.fit(scaled_data)
+    distances, _ = nn.kneighbors(scaled_data)
+    eps = float(np.median(distances[:, -1]))
+    eps = max(eps, 0.01)
+    logger.info("Auto-selected DBSCAN eps=%.4f (median %d-NN distance)", eps, k)
+    return eps
+
+
 def cluster(
     scaled_df: pd.DataFrame,
     algorithm: str = "kmeans",
@@ -266,10 +282,12 @@ def cluster(
         params = {"n_clusters": n_clusters, "n_init": 10}
 
     elif algorithm == "dbscan":
-        model = DBSCAN(eps=0.5, min_samples=max(5, len(values) // 100))
+        min_samples = max(5, len(values) // 100)
+        eps = _auto_eps(values, min_samples)
+        model = DBSCAN(eps=eps, min_samples=min_samples)
         labels = model.fit_predict(values)
         n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
-        params = {"eps": 0.5, "min_samples": model.min_samples}
+        params = {"eps": round(eps, 4), "min_samples": min_samples}
 
     elif algorithm == "hierarchical":
         if n_clusters is None:
@@ -303,8 +321,15 @@ def profile_clusters(
     scaled_df: pd.DataFrame,
     labels: np.ndarray,
     feature_names: List[str],
+    encoding_info: Optional[List[Dict[str, Any]]] = None,
 ) -> List[ClusterProfile]:
     """Generate per-cluster profiles."""
+    # Build lookup: {encoded_column_name: ["cat_a", "cat_b", ...]}
+    label_maps = {}
+    for enc in (encoding_info or []):
+        if enc["encoding_type"] == "label" and "label_mapping" in enc:
+            label_maps[enc["original_column"]] = enc["label_mapping"]
+
     profiles = []
     unique_labels = sorted(set(labels))
     total = len(labels)
@@ -318,7 +343,13 @@ def profile_clusters(
         cluster_data = numeric_df.loc[mask]
         centroid = {}
         for col in feature_names:
-            centroid[col] = round(float(cluster_data[col].mean()), 4)
+            raw_mean = round(float(cluster_data[col].mean()), 4)
+            if col in label_maps:
+                mapping = label_maps[col]
+                idx = max(0, min(round(raw_mean), len(mapping) - 1))
+                centroid[col] = mapping[idx]
+            else:
+                centroid[col] = raw_mean
 
         # Top distinguishing features: z-score deviation from overall mean
         cluster_scaled = scaled_df.loc[mask]
@@ -418,7 +449,7 @@ def run(
     labels, n_clust, sil_score, params = cluster(scaled_df, algorithm, n_clusters)
 
     # 4. Profile clusters
-    profiles = profile_clusters(numeric_df, scaled_df, labels, feature_names)
+    profiles = profile_clusters(numeric_df, scaled_df, labels, feature_names, encoding_info)
 
     # 5. Anomaly detection
     anomaly_labels, anomaly_scores = detect_anomalies(scaled_df, contamination)

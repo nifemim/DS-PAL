@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, patch, MagicMock
 from pathlib import Path
 
 from app.services.dataset_loader import _validate_content, download_dataset
+from app.services.providers.datagov_provider import _is_direct_download
 
 
 class TestValidateContent:
@@ -108,3 +109,74 @@ class TestDownloadRouting:
         with patch("app.services.dataset_loader._cache_path", return_value=tmp_path):
             result = await download_dataset("data.gov", "test", "http://example.com")
             assert result == cached_file
+
+    @pytest.mark.asyncio
+    async def test_cache_rejects_stale_html(self, tmp_path):
+        """Cached HTML files should be rejected and re-downloaded."""
+        cached_file = tmp_path / "data.csv"
+        cached_file.write_text("<!DOCTYPE html><html><body>Not data</body></html>")
+
+        mock_response = MagicMock()
+        mock_response.content = b"a,b\n1,2\n"
+        mock_response.headers = {"content-type": "text/csv"}
+        mock_response.raise_for_status = MagicMock()
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("app.services.dataset_loader._cache_path", return_value=tmp_path), \
+             patch("httpx.AsyncClient", return_value=mock_client):
+            result = await download_dataset("data.gov", "test", "http://example.com/data.csv")
+            # Old cached HTML file should have been removed
+            assert not cached_file.exists() or cached_file.read_bytes() == b"a,b\n1,2\n"
+
+    @pytest.mark.asyncio
+    async def test_cache_rejects_stale_xml(self, tmp_path):
+        """Cached XML files should be rejected and re-downloaded."""
+        cached_file = tmp_path / "data.csv"
+        cached_file.write_text('<?xml version="1.0"?><root></root>')
+
+        mock_response = MagicMock()
+        mock_response.content = b"x,y\n3,4\n"
+        mock_response.headers = {"content-type": "text/csv"}
+        mock_response.raise_for_status = MagicMock()
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("app.services.dataset_loader._cache_path", return_value=tmp_path), \
+             patch("httpx.AsyncClient", return_value=mock_client):
+            result = await download_dataset("data.gov", "test", "http://example.com/data.csv")
+            assert not cached_file.exists() or cached_file.read_bytes() == b"x,y\n3,4\n"
+
+
+class TestDirectDownloadFilter:
+    """Tests for data.gov URL filtering."""
+
+    def test_csv_url_is_direct(self):
+        assert _is_direct_download("https://data.gov/files/dataset.csv") is True
+
+    def test_json_url_is_direct(self):
+        assert _is_direct_download("https://api.data.gov/data.json") is True
+
+    def test_xlsx_url_is_direct(self):
+        assert _is_direct_download("https://example.com/report.xlsx") is True
+
+    def test_zip_url_is_direct(self):
+        assert _is_direct_download("https://example.com/data.zip") is True
+
+    def test_html_page_not_direct(self):
+        assert _is_direct_download("https://geodata.bts.gov/datasets/military-bases/about") is False
+
+    def test_api_endpoint_not_direct(self):
+        assert _is_direct_download("https://api.example.com/v1/datasets/123") is False
+
+    def test_empty_url_not_direct(self):
+        assert _is_direct_download("") is False
+
+    def test_arcgis_hub_not_direct(self):
+        assert _is_direct_download("https://hub.arcgis.com/datasets/abc123") is False

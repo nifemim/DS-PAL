@@ -50,12 +50,18 @@ async def download_dataset(source: str, dataset_id: str, url: str) -> Path:
     cache_dir = _cache_path(source, dataset_id)
     cache_dir.mkdir(parents=True, exist_ok=True)
 
-    # Check if we already have a cached CSV/file
+    # Check if we already have a cached file (validate it's real data, not stale HTML/XML)
     cached_files = list(cache_dir.glob("*.csv")) + list(cache_dir.glob("*.json")) + \
                    list(cache_dir.glob("*.parquet")) + list(cache_dir.glob("*.xlsx"))
     if cached_files:
-        logger.info("Using cached file: %s", cached_files[0])
-        return cached_files[0]
+        cached = cached_files[0]
+        try:
+            _validate_content(cached.read_bytes(), str(cached))
+            logger.info("Using cached file: %s", cached)
+            return cached
+        except ValueError:
+            logger.warning("Cached file %s contains invalid data, re-downloading", cached)
+            cached.unlink()  # Remove bad cached file
 
     if source == "kaggle":
         return await _download_kaggle(dataset_id, cache_dir)

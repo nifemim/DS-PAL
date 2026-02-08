@@ -11,6 +11,7 @@ from app.main import templates
 from app.services.dataset_loader import (
     MAX_FILE_BYTES,
     _validate_content,
+    detect_sheets,
     load_dataframe,
     save_upload,
 )
@@ -56,8 +57,17 @@ async def upload_dataset(request: Request, file: UploadFile):
         # 5. Verify file is loadable
         load_dataframe(file_path)
 
-        # 6. Redirect to dataset page
+        # 6. Check for multi-sheet Excel files
         display_name = Path(original_name).stem
+        if ext in (".xlsx", ".xls"):
+            sheets = detect_sheets(file_path)
+            if len(sheets) > 1:
+                return RedirectResponse(
+                    url=f"/dataset/upload/{upload_id}/sheets?name={quote(display_name)}",
+                    status_code=303,
+                )
+
+        # 7. Redirect to dataset page
         return RedirectResponse(
             url=f"/dataset/upload/{upload_id}?name={quote(display_name)}",
             status_code=303,

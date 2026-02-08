@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}DS-PAL - Select Sheet{% endblock %}
+{% block content %}
+<section>
+    <h2>{{ name or "Excel File" }} — Select Sheets</h2>
+    <p>This file contains <strong>{{ sheets|length }}</strong> worksheets. Select one to analyze, or select multiple to join them.</p>
+
+    <form method="post" action="/dataset/upload/{{ upload_id }}/sheets" id="sheet-form">
+        <input type="hidden" name="name" value="{{ name }}">
+
+        <fieldset>
+            <legend>
+                <label>
+                    <input type="checkbox" id="multi-select-toggle">
+                    Select multiple sheets to join
+                </label>
+            </legend>
+
+            <div id="sheet-list">
+                {% for sheet in sheets %}
+                <label class="sheet-option">
+                    <input type="radio" name="sheets" value="{{ sheet.name }}" class="sheet-radio"
+                        {% if loop.first %}checked{% endif %}>
+                    <input type="checkbox" name="sheets" value="{{ sheet.name }}" class="sheet-checkbox" style="display:none">
+                    <strong>{{ sheet.name }}</strong>
+                    <small>{{ sheet.num_rows }} rows, {{ sheet.num_columns }} columns</small>
+                    <br>
+                    <small>Columns: {{ sheet.columns[:6]|join(", ") }}{% if sheet.columns|length > 6 %}, ...{% endif %}</small>
+                </label>
+                {% endfor %}
+            </div>
+        </fieldset>
+
+        <div class="grid">
+            <button type="submit" id="btn-single">Use Selected Sheet</button>
+            <button type="submit" id="btn-join" style="display:none">Join Selected Sheets</button>
+            <a href="/" role="button" class="secondary">Cancel</a>
+        </div>
+    </form>
+</section>
+{% endblock %}

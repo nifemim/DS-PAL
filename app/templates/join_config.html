@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}DS-PAL - Configure Join{% endblock %}
+{% block content %}
+<section>
+    <h2>Configure Join</h2>
+    <p>Configure how to join <strong>{{ selected_sheets|length }}</strong> sheets together.</p>
+
+    {% set ns = namespace(has_error=false) %}
+    {% for pair in pairs %}
+        {% if pair.shared_columns|length == 0 %}
+            {% set ns.has_error = true %}
+        {% endif %}
+    {% endfor %}
+
+    {% if ns.has_error %}
+    <article>
+        <header>No shared columns found</header>
+        <p>Some sheet pairs have no matching column names and cannot be joined automatically.
+           Go back and select sheets that share at least one column name.</p>
+        <a href="/dataset/upload/{{ upload_id }}/sheets?name={{ name }}" role="button" class="secondary">Back to Sheet Selection</a>
+    </article>
+    {% else %}
+    <form method="post" action="/dataset/upload/{{ upload_id }}/join">
+        <input type="hidden" name="name" value="{{ name }}">
+        <input type="hidden" name="action" value="preview">
+
+        {% for sheet in selected_sheets %}
+        <input type="hidden" name="sheet_{{ loop.index0 }}" value="{{ sheet.name }}">
+        {% endfor %}
+
+        {% for pair in pairs %}
+        <article>
+            <header>Join: {{ pair.left }} + {{ pair.right }}</header>
+
+            <label for="join_key_{{ loop.index }}">Join column</label>
+            <select name="join_key_{{ loop.index }}" id="join_key_{{ loop.index }}" required>
+                {% for col in pair.shared_columns %}
+                <option value="{{ col }}">{{ col }}</option>
+                {% endfor %}
+            </select>
+
+            <label for="join_type_{{ loop.index }}">Join type</label>
+            <select name="join_type_{{ loop.index }}" id="join_type_{{ loop.index }}">
+                <option value="inner" selected>Inner (only matching rows)</option>
+                <option value="left">Left (keep all from {{ pair.left }})</option>
+                <option value="outer">Outer (keep all rows from both)</option>
+            </select>
+        </article>
+        {% endfor %}
+
+        <div class="grid">
+            <button type="submit">Preview Join Result</button>
+            <a href="/dataset/upload/{{ upload_id }}/sheets?name={{ name }}" role="button" class="secondary">Back</a>
+        </div>
+    </form>
+    {% endif %}
+</section>
+{% endblock %}

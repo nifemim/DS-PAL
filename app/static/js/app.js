@@ -48,6 +48,25 @@ window.addEventListener("storage", function (e) {
     }
 });
 
+// --- Sheet selection: radio ↔ checkbox toggle ---
+(function () {
+    var toggle = document.getElementById("multi-select-toggle");
+    if (!toggle) return;
+
+    var radios = document.querySelectorAll(".sheet-radio");
+    var checkboxes = document.querySelectorAll(".sheet-checkbox");
+    var btnSingle = document.getElementById("btn-single");
+    var btnJoin = document.getElementById("btn-join");
+
+    toggle.addEventListener("change", function () {
+        var multi = toggle.checked;
+        radios.forEach(function (r) { r.style.display = multi ? "none" : ""; r.disabled = multi; });
+        checkboxes.forEach(function (c) { c.style.display = multi ? "" : "none"; c.disabled = !multi; });
+        btnSingle.style.display = multi ? "none" : "";
+        btnJoin.style.display = multi ? "" : "none";
+    });
+})();
+
 // --- Upload button enable/disable + spinner ---
 (function () {
     var fileInput = document.getElementById("upload-file");

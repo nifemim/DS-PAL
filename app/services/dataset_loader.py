@@ -241,7 +241,67 @@ def _extract_zip(content: bytes, cache_dir: Path) -> Path:
         return max(extracted, key=lambda f: f.stat().st_size)
 
 
-def load_dataframe(file_path: Path, max_rows: Optional[int] = None) -> pd.DataFrame:
+def detect_sheets(file_path: Path) -> list[dict]:
+    """Detect sheets in an Excel file.
+
+    Returns list of dicts with keys: name, num_rows, num_columns, columns.
+    """
+    xls = pd.ExcelFile(file_path)
+    sheets = []
+    for name in xls.sheet_names:
+        df = pd.read_excel(xls, sheet_name=name)
+        sheets.append({
+            "name": name,
+            "num_rows": len(df),
+            "num_columns": len(df.columns),
+            "columns": df.columns.tolist(),
+        })
+    return sheets
+
+
+def join_sheets(
+    file_path: Path,
+    sheet_configs: list[dict],
+    max_rows: Optional[int] = None,
+) -> pd.DataFrame:
+    """Load and sequentially join multiple Excel sheets.
+
+    sheet_configs: [{"name": "Sheet1", "join_key": "col", "join_type": "inner"}, ...]
+    The first entry only needs "name". Subsequent entries need join_key and join_type.
+    Returns the joined DataFrame.
+    """
+    max_rows = max_rows or settings.max_dataset_rows
+
+    result = pd.read_excel(file_path, sheet_name=sheet_configs[0]["name"])
+
+    for config in sheet_configs[1:]:
+        right = pd.read_excel(file_path, sheet_name=config["name"])
+        result = result.merge(
+            right,
+            on=config["join_key"],
+            how=config.get("join_type", "inner"),
+            suffixes=("", f"_{config['name']}"),
+        )
+
+    if len(result) > max_rows:
+        result = result.head(max_rows)
+
+    return result
+
+
+def save_joined_csv(df: pd.DataFrame, upload_id: str) -> Path:
+    """Save a joined DataFrame as CSV in the upload's cache directory."""
+    cache_dir = _cache_path("upload", upload_id)
+    joined_path = cache_dir / "joined.csv"
+    df.to_csv(joined_path, index=False)
+    return joined_path
+
+
+def load_dataframe(
+    file_path: Path,
+    max_rows: Optional[int] = None,
+    sheet_name: Optional[str] = None,
+) -> pd.DataFrame:
     """Load a data file into a pandas DataFrame."""
     max_rows = max_rows or settings.max_dataset_rows
     suffix = file_path.suffix.lower()
@@ -257,7 +317,7 @@ def load_dataframe(file_path: Path, max_rows: Optional[int] = None) -> pd.DataFr
         if len(df) > max_rows:
             df = df.head(max_rows)
     elif suffix in (".xlsx", ".xls"):
-        df = pd.read_excel(file_path, nrows=max_rows)
+        df = pd.read_excel(file_path, sheet_name=sheet_name or 0, nrows=max_rows)
     else:
         # Try CSV as fallback
         df = pd.read_csv(file_path, nrows=max_rows, on_bad_lines="skip")

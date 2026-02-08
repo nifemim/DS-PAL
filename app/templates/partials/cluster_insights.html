@@ -1,11 +1,27 @@
 {% if sections %}
-<h4>Overview</h4>
 <p>{{ sections.overview }}</p>
 
-<h4>Cluster Characteristics</h4>
-<p>{{ sections.clusters }}</p>
+<table>
+    <thead>
+        <tr>
+            <th>Cluster</th>
+            <th>Label</th>
+            <th>Size</th>
+            <th>Description</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for c in sections.clusters %}
+        <tr>
+            <td>{% if c.id == -1 %}Noise{% else %}{{ c.id }}{% endif %}</td>
+            <td><strong>{{ c.label }}</strong></td>
+            <td>{{ c.size }} ({{ c.percentage }}%)</td>
+            <td>{{ c.description }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
 
-<h4>Anomalies & Quality</h4>
 <p>{{ sections.quality }}</p>
 
 <div style="margin-top: 1rem;">

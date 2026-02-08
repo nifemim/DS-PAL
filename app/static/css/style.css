@@ -1,12 +1,20 @@
 /* DS-PAL custom styles */
 
 /* Primary accent color override — soft lavender purple */
-:root,
-[data-theme="light"],
-[data-theme="dark"] {
+:root:not([data-theme="dark"]),
+[data-theme="light"] {
     --pico-primary: #a78bfa;
     --pico-primary-hover: #8b5cf6;
     --pico-primary-focus: rgba(167, 139, 250, 0.5);
+    --pico-primary-background: #a78bfa;
+    --pico-primary-hover-background: #8b5cf6;
+    --pico-primary-inverse: #fff;
+}
+
+[data-theme="dark"] {
+    --pico-primary: #a78bfa;
+    --pico-primary-hover: #8b5cf6;
+    --pico-primary-focus: rgba(167, 139, 250, 0.375);
     --pico-primary-background: #a78bfa;
     --pico-primary-hover-background: #8b5cf6;
     --pico-primary-inverse: #fff;

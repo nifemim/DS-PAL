@@ -10,15 +10,17 @@ from app.models.schemas import AnalysisOutput
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_MODEL = "claude-haiku-4-5-20251001"
+_DEFAULT_ANTHROPIC_MODEL = "claude-haiku-4-5-latest"
+_DEFAULT_OLLAMA_MODEL = "llama3.2"
 _ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
-_TIMEOUT = 30
+_TIMEOUT = 60
 
 
-async def generate_insights(analysis: AnalysisOutput) -> str | None:
+async def generate_insights(analysis: AnalysisOutput) -> dict[str, str] | None:
     """Generate a plain-language narrative for clustering results.
 
-    Returns None if LLM is disabled or the call fails.
+    Returns a dict with keys 'overview', 'clusters', 'quality',
+    or None if LLM is disabled or the call fails.
     """
     if not settings.insights_enabled:
         return None
@@ -26,10 +28,37 @@ async def generate_insights(analysis: AnalysisOutput) -> str | None:
     system_prompt, user_prompt = _build_prompt(analysis)
 
     try:
-        return await _call_anthropic(system_prompt, user_prompt)
+        if settings.llm_provider == "ollama":
+            raw = await _call_ollama(system_prompt, user_prompt)
+        else:
+            raw = await _call_anthropic(system_prompt, user_prompt)
+        return split_sections(raw)
     except Exception:
         logger.exception("LLM insights call failed")
         return None
+
+
+def split_sections(text: str) -> dict[str, str]:
+    """Split LLM response into three named sections.
+
+    Tries '---' separator first, falls back to double-newline paragraph splitting.
+    """
+    # Try explicit --- separator
+    parts = [p.strip() for p in text.split("---") if p.strip()]
+    if len(parts) >= 3:
+        return {
+            "overview": parts[0],
+            "clusters": parts[1],
+            "quality": parts[2],
+        }
+
+    # Fallback: split on double newlines (paragraphs)
+    parts = [p.strip() for p in text.split("\n\n") if p.strip()]
+    return {
+        "overview": parts[0] if len(parts) > 0 else "",
+        "clusters": parts[1] if len(parts) > 1 else "",
+        "quality": parts[2] if len(parts) > 2 else "",
+    }
 
 
 def _build_prompt(analysis: AnalysisOutput) -> tuple[str, str]:
@@ -38,24 +67,37 @@ def _build_prompt(analysis: AnalysisOutput) -> tuple[str, str]:
 
     system = (
         "You are a data analyst writing a concise report. "
-        "Write a 200-300 word narrative in three paragraphs: "
-        "1) Overview of the dataset and clustering approach, "
-        "2) Key characteristics that distinguish each cluster, "
-        "3) Clustering quality assessment and notable anomalies. "
+        "Write exactly three paragraphs separated by a line containing only '---':\n\n"
+        "Paragraph 1 — Overview: Summarize the dataset, algorithm used, and number of clusters found.\n\n"
+        "Paragraph 2 — Cluster Characteristics: This is the most important section. "
+        "For each cluster, give it an intuitive label based on its distinguishing features "
+        "(e.g. 'high-income urban professionals', 'budget-conscious young renters'). "
+        "Explain what makes each cluster unique by interpreting the feature values and z-deviations. "
+        "A positive z-deviation means the cluster is above average for that feature; negative means below. "
+        "Describe the real-world meaning of these patterns — don't just list numbers.\n\n"
+        "Paragraph 3 — Anomalies & Quality: Interpret the silhouette score "
+        "(below 0.25 = poor, 0.25-0.5 = fair, 0.5-0.75 = good, above 0.75 = excellent). "
+        "Comment on anomaly count and what might make those points unusual.\n\n"
         "Use specific numbers. Be precise and professional. "
-        "Do not use markdown headings or bullet points — just plain paragraphs."
+        "Do not use markdown headings or bullet points — just plain paragraphs separated by ---"
     )
 
-    # Build cluster summaries
+    # Build cluster summaries with full feature detail
     cluster_lines = []
     for p in analysis.cluster_profiles:
-        top = []
+        features_detail = []
         for f in p.top_features[:5]:
             name = feature_map.get(f["feature"], f["feature"])
-            top.append(f"{name} (z={f['z_deviation']})")
+            z = f["z_deviation"]
+            direction = "above" if z > 0 else "below"
+            features_detail.append(
+                f"  - {name}: cluster mean={f['cluster_mean']}, "
+                f"overall mean={f['overall_mean']}, "
+                f"z={z} ({direction} average)"
+            )
         cluster_lines.append(
-            f"Cluster {p.cluster_id}: {p.size} samples ({p.percentage}%), "
-            f"top features: {', '.join(top)}"
+            f"Cluster {p.cluster_id}: {p.size} samples ({p.percentage}%)\n"
+            + "\n".join(features_detail)
         )
 
     anomaly_count = sum(1 for a in analysis.anomaly_labels if a == 1)
@@ -89,9 +131,31 @@ def _map_feature_names(analysis: AnalysisOutput) -> dict[str, str]:
     return mapping
 
 
+async def _call_ollama(system: str, user: str) -> str:
+    """Call a local Ollama instance (OpenAI-compatible API)."""
+    model = settings.llm_model or _DEFAULT_OLLAMA_MODEL
+    url = f"{settings.ollama_base_url}/v1/chat/completions"
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.post(
+            url,
+            json={
+                "model": model,
+                "temperature": 0.3,
+                "messages": [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user},
+                ],
+            },
+        )
+        if resp.status_code != 200:
+            logger.error("Ollama API error %s: %s", resp.status_code, resp.text)
+        resp.raise_for_status()
+        return resp.json()["choices"][0]["message"]["content"]
+
+
 async def _call_anthropic(system: str, user: str) -> str:
     """Call the Anthropic Messages API."""
-    model = settings.llm_model or _DEFAULT_MODEL
+    model = settings.llm_model or _DEFAULT_ANTHROPIC_MODEL
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
         resp = await client.post(
             _ANTHROPIC_URL,
@@ -108,5 +172,7 @@ async def _call_anthropic(system: str, user: str) -> str:
                 "messages": [{"role": "user", "content": user}],
             },
         )
+        if resp.status_code != 200:
+            logger.error("Anthropic API error %s: %s", resp.status_code, resp.text)
         resp.raise_for_status()
         return resp.json()["content"][0]["text"]

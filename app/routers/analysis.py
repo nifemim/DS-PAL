@@ -101,15 +101,15 @@ async def get_insights(request: Request, analysis_id: str):
         return HTMLResponse("")
 
     analysis = entry["analysis"]
-    narrative = await generate_insights(analysis)
+    sections = await generate_insights(analysis)
 
-    if narrative is None:
+    if sections is None:
         return templates.TemplateResponse(
             "partials/cluster_insights.html",
             {
                 "request": request,
                 "analysis_id": analysis_id,
-                "narrative": None,
+                "sections": None,
             },
         )
 
@@ -118,7 +118,7 @@ async def get_insights(request: Request, analysis_id: str):
         {
             "request": request,
             "analysis_id": analysis_id,
-            "narrative": narrative,
+            "sections": sections,
         },
     )
 

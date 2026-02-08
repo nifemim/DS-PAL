@@ -1,5 +1,13 @@
-{% if narrative %}
-<p>{{ narrative }}</p>
+{% if sections %}
+<h4>Overview</h4>
+<p>{{ sections.overview }}</p>
+
+<h4>Cluster Characteristics</h4>
+<p>{{ sections.clusters }}</p>
+
+<h4>Anomalies & Quality</h4>
+<p>{{ sections.quality }}</p>
+
 <div style="margin-top: 1rem;">
     <button class="outline secondary"
             hx-get="/api/analysis/{{ analysis_id }}/insights"

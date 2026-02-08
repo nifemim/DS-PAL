@@ -9,6 +9,7 @@ from app.services.insights import (
     _build_prompt,
     _map_feature_names,
     generate_insights,
+    split_sections,
 )
 
 
@@ -85,9 +86,9 @@ def test_build_prompt_includes_cluster_profiles(sample_analysis):
 def test_build_prompt_maps_encoded_features(sample_analysis):
     _, user = _build_prompt(sample_analysis)
     # One-hot encoded "city_NY" should appear as "city"
-    assert "city (z=" in user
+    assert "- city: cluster mean=" in user
     # One-hot encoded "category_Home" should appear as "category"
-    assert "category (z=" in user
+    assert "- category: cluster mean=" in user
 
 
 def test_build_prompt_includes_anomaly_count(sample_analysis):
@@ -141,9 +142,10 @@ async def test_generate_insights_returns_none_when_disabled(sample_analysis):
 
 @pytest.mark.asyncio
 async def test_generate_insights_calls_anthropic(sample_analysis):
+    llm_text = "Overview paragraph.\n---\nCluster paragraph.\n---\nQuality paragraph."
     mock_response = httpx.Response(
         200,
-        json={"content": [{"text": "This analysis reveals three distinct clusters."}]},
+        json={"content": [{"text": llm_text}]},
         request=httpx.Request("POST", "https://api.anthropic.com/v1/messages"),
     )
 
@@ -163,7 +165,11 @@ async def test_generate_insights_calls_anthropic(sample_analysis):
         mock_client_cls.return_value = mock_client
 
         result = await generate_insights(sample_analysis)
-        assert result == "This analysis reveals three distinct clusters."
+        assert result == {
+            "overview": "Overview paragraph.",
+            "clusters": "Cluster paragraph.",
+            "quality": "Quality paragraph.",
+        }
         mock_client.post.assert_called_once()
 
 
@@ -190,3 +196,19 @@ async def test_generate_insights_returns_none_on_failure(sample_analysis):
 
         result = await generate_insights(sample_analysis)
         assert result is None
+
+
+def test_split_sections_three_parts():
+    result = split_sections("Part one.\n---\nPart two.\n---\nPart three.")
+    assert result == {
+        "overview": "Part one.",
+        "clusters": "Part two.",
+        "quality": "Part three.",
+    }
+
+
+def test_split_sections_single_block():
+    result = split_sections("Just one paragraph with no separators.")
+    assert result["overview"] == "Just one paragraph with no separators."
+    assert result["clusters"] == ""
+    assert result["quality"] == ""

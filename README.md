@@ -1,4 +1,4 @@
-# DS-PAL
+# DS-PAL — Dataset Pre-processing, Analysis, and Learning
 
 A dataset analysis platform with clustering, anomaly detection, and interactive visualizations. Includes a CLI-based ticket manager for tracking fix-later items.
 

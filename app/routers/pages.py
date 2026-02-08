@@ -1,6 +1,7 @@
 """Full HTML page routes."""
 import logging
 from fastapi import APIRouter, Request
+from app.config import settings
 from app.main import templates
 from app.services.dataset_loader import download_dataset, load_dataframe, build_preview
 
@@ -10,7 +11,10 @@ router = APIRouter()
 
 @router.get("/")
 async def home(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse(
+        "index.html",
+        {"request": request, "max_file_size_mb": settings.max_file_size_mb},
+    )
 
 
 @router.get("/saved")

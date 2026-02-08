@@ -20,6 +20,29 @@
     </form>
 </section>
 
+{% if upload_error is defined and upload_error %}
+<div class="error-message" role="alert">{{ upload_error }}</div>
+{% endif %}
+
+<section>
+    <p style="text-align: center; color: var(--pico-muted-color);">&mdash; or upload your own &mdash;</p>
+    <form id="upload-form"
+          action="/api/dataset/upload"
+          method="post"
+          enctype="multipart/form-data">
+        <fieldset role="group">
+            <input type="file"
+                   id="upload-file"
+                   name="file"
+                   accept=".csv,.json,.xlsx,.xls,.parquet"
+                   aria-label="Upload a dataset file"
+                   required>
+            <button type="submit" id="upload-btn" disabled>Upload &amp; Preview</button>
+        </fieldset>
+        <small style="color: var(--pico-muted-color);">CSV, Excel, JSON, or Parquet &middot; max {{ max_file_size_mb }} MB</small>
+    </form>
+</section>
+
 <section id="search-results">
     <!-- HTMX swaps search results here -->
 </section>

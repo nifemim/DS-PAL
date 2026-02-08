@@ -26,13 +26,18 @@ async def generate_insights(analysis: AnalysisOutput) -> dict[str, str] | None:
         return None
 
     system_prompt, user_prompt = _build_prompt(analysis)
+    n_profiles = len(analysis.cluster_profiles)
+    max_tokens = 300 + 150 * max(n_profiles, 1)
 
     try:
         if settings.llm_provider == "ollama":
-            raw = await _call_ollama(system_prompt, user_prompt)
+            raw = await _call_ollama(system_prompt, user_prompt, max_tokens)
         else:
-            raw = await _call_anthropic(system_prompt, user_prompt)
-        return split_sections(raw)
+            raw = await _call_anthropic(system_prompt, user_prompt, max_tokens)
+        sections = split_sections(raw)
+        if sections.get("clusters", "").lower().count("cluster") < n_profiles:
+            logger.warning("Insights may not cover all %d clusters", n_profiles)
+        return sections
     except Exception:
         logger.exception("LLM insights call failed")
         return None
@@ -65,11 +70,22 @@ def _build_prompt(analysis: AnalysisOutput) -> tuple[str, str]:
     """Build system and user prompts from analysis data."""
     feature_map = _map_feature_names(analysis)
 
+    cluster_id_labels = [str(p.cluster_id) for p in analysis.cluster_profiles]
+    cluster_id_list = ", ".join(cluster_id_labels)
+    n = len(analysis.cluster_profiles)
+
+    if n == 1:
+        cluster_instruction = f"Describe the single cluster (Cluster {cluster_id_list})."
+    else:
+        cluster_instruction = (
+            f"You MUST describe ALL {n} clusters (Cluster {cluster_id_list})."
+        )
+
     system = (
         "You are a data analyst writing a concise report. "
         "Write exactly three paragraphs separated by a line containing only '---':\n\n"
         "Paragraph 1 — Overview: Summarize the dataset, algorithm used, and number of clusters found.\n\n"
-        "Paragraph 2 — Cluster Characteristics: This is the most important section. "
+        f"Paragraph 2 — Cluster Characteristics: {cluster_instruction} "
         "For each cluster, give it an intuitive label based on its distinguishing features "
         "(e.g. 'high-income urban professionals', 'budget-conscious young renters'). "
         "Explain what makes each cluster unique by interpreting the feature values and z-deviations. "
@@ -131,7 +147,7 @@ def _map_feature_names(analysis: AnalysisOutput) -> dict[str, str]:
     return mapping
 
 
-async def _call_ollama(system: str, user: str) -> str:
+async def _call_ollama(system: str, user: str, max_tokens: int = 1024) -> str:
     """Call a local Ollama instance (OpenAI-compatible API)."""
     model = settings.llm_model or _DEFAULT_OLLAMA_MODEL
     url = f"{settings.ollama_base_url}/v1/chat/completions"
@@ -141,6 +157,7 @@ async def _call_ollama(system: str, user: str) -> str:
             json={
                 "model": model,
                 "temperature": 0.3,
+                "max_tokens": max_tokens,
                 "messages": [
                     {"role": "system", "content": system},
                     {"role": "user", "content": user},
@@ -153,7 +170,7 @@ async def _call_ollama(system: str, user: str) -> str:
         return resp.json()["choices"][0]["message"]["content"]
 
 
-async def _call_anthropic(system: str, user: str) -> str:
+async def _call_anthropic(system: str, user: str, max_tokens: int = 1024) -> str:
     """Call the Anthropic Messages API."""
     model = settings.llm_model or _DEFAULT_ANTHROPIC_MODEL
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
@@ -166,7 +183,7 @@ async def _call_anthropic(system: str, user: str) -> str:
             },
             json={
                 "model": model,
-                "max_tokens": 500,
+                "max_tokens": max_tokens,
                 "temperature": 0.3,
                 "system": system,
                 "messages": [{"role": "user", "content": user}],

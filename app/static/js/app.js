@@ -1,5 +1,55 @@
 /* DS-PAL client-side JavaScript */
 
+// --- Theme toggle ---
+
+function getPlotlyThemeOverrides() {
+    var isDark = document.documentElement.getAttribute("data-theme") === "dark";
+    return isDark
+        ? { paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)", font: { color: "#e0e0e0" } }
+        : { paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)", font: { color: "#333" } };
+}
+
+function applyTheme(theme) {
+    document.documentElement.setAttribute("data-theme", theme);
+    var btn = document.getElementById("theme-toggle");
+    if (btn) {
+        btn.textContent = theme === "dark" ? "\u2600\uFE0E" : "\u263E\uFE0E";
+        btn.setAttribute("aria-label", theme === "dark" ? "Switch to light mode" : "Switch to dark mode");
+    }
+    try { localStorage.setItem("ds-pal-theme", theme); } catch (e) {}
+
+    // Re-render visible Plotly charts with new theme colors
+    var overrides = getPlotlyThemeOverrides();
+    document.querySelectorAll("[data-plotly]").forEach(function (el) {
+        if (typeof Plotly !== "undefined") {
+            Plotly.relayout(el, overrides);
+        }
+    });
+}
+
+// Set correct icon and attach click handler on load
+(function () {
+    var theme = document.documentElement.getAttribute("data-theme") || "light";
+    var btn = document.getElementById("theme-toggle");
+    if (btn) {
+        btn.textContent = theme === "dark" ? "\u2600\uFE0E" : "\u263E\uFE0E";
+        btn.setAttribute("aria-label", theme === "dark" ? "Switch to light mode" : "Switch to dark mode");
+        btn.addEventListener("click", function () {
+            var current = document.documentElement.getAttribute("data-theme");
+            applyTheme(current === "dark" ? "light" : "dark");
+        });
+    }
+})();
+
+// Cross-tab sync
+window.addEventListener("storage", function (e) {
+    if (e.key === "ds-pal-theme" && e.newValue) {
+        applyTheme(e.newValue);
+    }
+});
+
+// --- HTMX utilities ---
+
 // Clear any stuck htmx-request classes on page load
 document.addEventListener("DOMContentLoaded", function () {
     document.querySelectorAll(".htmx-request").forEach(function (el) {
@@ -16,7 +66,8 @@ document.body.addEventListener("htmx:afterSwap", function (event) {
     charts.forEach(function (el) {
         try {
             var data = JSON.parse(el.getAttribute("data-plotly"));
-            Plotly.newPlot(el, data.data, data.layout, { responsive: true });
+            var layout = Object.assign({}, data.layout, getPlotlyThemeOverrides());
+            Plotly.newPlot(el, data.data, layout, { responsive: true });
         } catch (e) {
             console.error("Failed to render Plotly chart:", e);
         }

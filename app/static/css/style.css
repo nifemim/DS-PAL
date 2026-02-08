@@ -31,6 +31,24 @@ fieldset[role="group"]:has(input[type="search"]:focus) {
     outline: none;
 }
 
+/* Theme toggle button */
+.theme-toggle {
+    background: none;
+    border: none;
+    font-size: 1.25rem;
+    cursor: pointer;
+    padding: 0.25rem;
+    line-height: 1;
+}
+
+[data-theme="light"] .theme-toggle {
+    color: #000;
+}
+
+[data-theme="dark"] .theme-toggle {
+    color: #fff;
+}
+
 /* Dataset list (Wikipedia-style search results) */
 .dataset-list {
     margin-top: 1rem;

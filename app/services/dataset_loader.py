@@ -4,6 +4,7 @@ import io
 import logging
 import os
 import re
+import uuid
 import zipfile
 from pathlib import Path
 from typing import Optional, Tuple
@@ -30,7 +31,20 @@ def _cache_path(source: str, dataset_id: str) -> Path:
     return Path(settings.cache_dir) / f"{source}_{safe_id}"
 
 
-def _validate_content(content: bytes, url: str) -> None:
+def save_upload(content: bytes, ext: str) -> tuple[str, Path]:
+    """Save an uploaded file to the cache directory.
+
+    Returns (upload_id, file_path).
+    """
+    upload_id = str(uuid.uuid4())
+    cache_dir = _cache_path("upload", upload_id)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    file_path = cache_dir / f"data{ext}"
+    file_path.write_bytes(content)
+    return upload_id, file_path
+
+
+def _validate_content(content: bytes, url: str = "") -> None:
     """Check that downloaded content is actual data, not HTML/XML error pages."""
     head = content[:500].strip().lower()
     if head.startswith(b"<!doctype html") or head.startswith(b"<html"):
@@ -62,6 +76,9 @@ async def download_dataset(source: str, dataset_id: str, url: str) -> Path:
         except ValueError:
             logger.warning("Cached file %s contains invalid data, re-downloading", cached)
             cached.unlink()  # Remove bad cached file
+
+    if source == "upload":
+        raise ValueError("Uploaded file not found. Please re-upload your dataset.")
 
     if source == "kaggle":
         return await _download_kaggle(dataset_id, cache_dir)

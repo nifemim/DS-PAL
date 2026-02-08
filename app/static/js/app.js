@@ -48,6 +48,24 @@ window.addEventListener("storage", function (e) {
     }
 });
 
+// --- Upload button enable/disable + spinner ---
+(function () {
+    var fileInput = document.getElementById("upload-file");
+    var uploadBtn = document.getElementById("upload-btn");
+    var form = document.getElementById("upload-form");
+    if (!fileInput || !uploadBtn || !form) return;
+
+    fileInput.addEventListener("change", function () {
+        uploadBtn.disabled = !fileInput.files.length;
+    });
+
+    form.addEventListener("submit", function () {
+        uploadBtn.disabled = true;
+        uploadBtn.setAttribute("aria-busy", "true");
+        uploadBtn.textContent = "Uploading\u2026";
+    });
+})();
+
 // --- HTMX utilities ---
 
 // Clear any stuck htmx-request classes on page load

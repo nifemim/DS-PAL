@@ -49,12 +49,13 @@ def create_app() -> FastAPI:
     app.mount("/static", StaticFiles(directory=APP_DIR / "static"), name="static")
 
     # Register routers
-    from app.routers import pages, search, analysis, saved
+    from app.routers import pages, search, analysis, saved, upload
 
     app.include_router(pages.router)
     app.include_router(search.router, prefix="/api")
     app.include_router(analysis.router, prefix="/api")
     app.include_router(saved.router, prefix="/api")
+    app.include_router(upload.router, prefix="/api")
 
     return app
 

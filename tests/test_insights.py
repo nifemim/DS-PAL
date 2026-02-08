@@ -212,3 +212,61 @@ def test_split_sections_single_block():
     assert result["overview"] == "Just one paragraph with no separators."
     assert result["clusters"] == ""
     assert result["quality"] == ""
+
+
+def test_build_prompt_enumerates_clusters(sample_analysis):
+    """System prompt explicitly states cluster count and IDs."""
+    system, _ = _build_prompt(sample_analysis)
+    assert "ALL 3 clusters" in system
+    assert "Cluster 0, 1, 2" in system
+
+
+def test_build_prompt_singular_cluster():
+    """System prompt uses singular grammar for one cluster."""
+    analysis = AnalysisOutput(
+        id="x", title="x", dataset_source="x", dataset_id="x",
+        dataset_name="x", num_rows=10, num_columns=1, column_names=["a"],
+        algorithm="kmeans", n_clusters=1,
+        cluster_profiles=[
+            ClusterProfile(cluster_id=0, size=10, percentage=100.0, top_features=[]),
+        ],
+        cluster_labels=[0] * 10,
+        feature_names=["a"],
+        encoding_info=[],
+    )
+    system, _ = _build_prompt(analysis)
+    assert "the single cluster" in system
+    assert "Cluster 0" in system
+
+
+@pytest.mark.asyncio
+async def test_anthropic_called_with_scaled_max_tokens(sample_analysis):
+    """generate_insights passes scaled max_tokens to Anthropic API."""
+    llm_text = "Overview.\n---\nCluster 0. Cluster 1. Cluster 2.\n---\nQuality."
+    mock_response = httpx.Response(
+        200,
+        json={"content": [{"text": llm_text}]},
+        request=httpx.Request("POST", "https://api.anthropic.com/v1/messages"),
+    )
+
+    with (
+        patch("app.services.insights.settings") as mock_settings,
+        patch("app.services.insights.httpx.AsyncClient") as mock_client_cls,
+    ):
+        mock_settings.insights_enabled = True
+        mock_settings.anthropic_api_key = "sk-test"
+        mock_settings.llm_provider = "anthropic"
+        mock_settings.llm_model = ""
+
+        mock_client = AsyncMock()
+        mock_client.post.return_value = mock_response
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client_cls.return_value = mock_client
+
+        await generate_insights(sample_analysis)
+
+        # 3 cluster profiles: 300 + 150*3 = 750
+        call_kwargs = mock_client.post.call_args
+        request_body = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
+        assert request_body["max_tokens"] == 750

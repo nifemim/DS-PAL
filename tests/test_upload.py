@@ -266,3 +266,20 @@ class TestMultiSheetExcel:
 
             assert resp.status_code == 200
             assert "No shared columns" in resp.text
+
+    def test_join_does_not_cap_results(self, tmp_path):
+        """join_sheets returns all rows, even when exceeding max_dataset_rows."""
+        # Create sheets whose inner join produces more rows than the default cap
+        n = 6000
+        left = pd.DataFrame({"key": list(range(n)), "val_left": range(n)})
+        right = pd.DataFrame({"key": list(range(n)) * 2, "val_right": range(n * 2)})
+        file_path = _create_multi_sheet_excel(tmp_path, {"Left": left, "Right": right})
+
+        configs = [
+            {"name": "Left"},
+            {"name": "Right", "join_key": "key", "join_type": "inner"},
+        ]
+        result = join_sheets(file_path, configs)
+
+        # Should get 12,000 rows (each left key matches 2 right rows), not 10,000
+        assert len(result) == n * 2

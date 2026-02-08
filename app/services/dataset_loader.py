@@ -262,16 +262,13 @@ def detect_sheets(file_path: Path) -> list[dict]:
 def join_sheets(
     file_path: Path,
     sheet_configs: list[dict],
-    max_rows: Optional[int] = None,
 ) -> pd.DataFrame:
     """Load and sequentially join multiple Excel sheets.
 
     sheet_configs: [{"name": "Sheet1", "join_key": "col", "join_type": "inner"}, ...]
     The first entry only needs "name". Subsequent entries need join_key and join_type.
-    Returns the joined DataFrame.
+    Returns the joined DataFrame (no row cap — bounded by upload file size limit).
     """
-    max_rows = max_rows or settings.max_dataset_rows
-
     result = pd.read_excel(file_path, sheet_name=sheet_configs[0]["name"])
 
     for config in sheet_configs[1:]:
@@ -282,9 +279,6 @@ def join_sheets(
             how=config.get("join_type", "inner"),
             suffixes=("", f"_{config['name']}"),
         )
-
-    if len(result) > max_rows:
-        result = result.head(max_rows)
 
     return result
 
@@ -303,7 +297,11 @@ def load_dataframe(
     sheet_name: Optional[str] = None,
 ) -> pd.DataFrame:
     """Load a data file into a pandas DataFrame."""
-    max_rows = max_rows or settings.max_dataset_rows
+    # Joined CSVs are user-controlled — don't apply the row cap
+    if file_path.name == "joined.csv":
+        max_rows = None
+    elif max_rows is None:
+        max_rows = settings.max_dataset_rows
     suffix = file_path.suffix.lower()
 
     if suffix == ".csv":

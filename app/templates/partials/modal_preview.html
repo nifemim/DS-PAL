@@ -72,10 +72,8 @@
 
 <footer>
     <button class="secondary" onclick="document.getElementById('preview-modal').close()">Close</button>
-    <button hx-post="/api/dataset/preview"
-            hx-target="#dataset-preview"
-            hx-vals='{"source": "{{ preview.source }}", "dataset_id": "{{ preview.dataset_id }}", "name": "{{ preview.name|e }}", "url": "{{ preview.url|e }}"}'
-            onclick="document.getElementById('preview-modal').close()">
+    <a href="/dataset/{{ preview.source }}/{{ preview.dataset_id }}?name={{ preview.name|urlencode }}&url={{ preview.url|urlencode }}"
+       role="button">
         Proceed to Analysis
-    </button>
+    </a>
 </footer>

@@ -54,7 +54,16 @@ fieldset[role="group"]:has(input[type="search"]:focus) {
 
 .dataset-item-header h4 {
     margin: 0;
+}
+
+.dataset-item-header h4 a {
     color: var(--pico-primary);
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.dataset-item-header h4 a:hover {
+    text-decoration: underline;
 }
 
 .dataset-item-description {
@@ -70,13 +79,6 @@ fieldset[role="group"]:has(input[type="search"]:focus) {
     font-size: 0.8rem;
     color: var(--pico-muted-color);
     margin: 0.25rem 0;
-}
-
-.dataset-item-action {
-    margin-top: 0.5rem;
-    padding: 0.25rem 0.75rem;
-    font-size: 0.85rem;
-    width: auto;
 }
 
 /* Preview table */

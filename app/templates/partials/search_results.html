@@ -6,7 +6,14 @@
     <div class="dataset-item">
         <div class="dataset-item-header">
             <span class="source-badge">{{ ds.source }}</span>
-            <h4>{{ ds.name }}</h4>
+            <h4><a href="#"
+                   onclick="event.preventDefault(); document.getElementById('preview-modal').showModal()"
+                   hx-post="/api/dataset/modal-preview"
+                   hx-target="#modal-content"
+                   hx-indicator="#modal-spinner"
+                   hx-vals='{"source": "{{ ds.source }}", "dataset_id": "{{ ds.dataset_id }}", "name": "{{ ds.name|e }}", "url": "{{ ds.url|e }}"}'>
+                {{ ds.name }}
+            </a></h4>
         </div>
         {% if ds.description %}
         <p class="dataset-item-description">{{ ds.description[:150] }}{% if ds.description|length > 150 %}...{% endif %}</p>
@@ -16,14 +23,6 @@
             <span>Format: {{ ds.format or "CSV" }}</span>
             {% if ds.tags %}<span>Tags: {{ ds.tags|join(", ") }}</span>{% endif %}
         </div>
-        <button class="dataset-item-action"
-                onclick="document.getElementById('preview-modal').showModal()"
-                hx-post="/api/dataset/modal-preview"
-                hx-target="#modal-content"
-                hx-indicator="#modal-spinner"
-                hx-vals='{"source": "{{ ds.source }}", "dataset_id": "{{ ds.dataset_id }}", "name": "{{ ds.name|e }}", "url": "{{ ds.url|e }}"}'>
-            Select Dataset
-        </button>
     </div>
     {% endfor %}
 </div>

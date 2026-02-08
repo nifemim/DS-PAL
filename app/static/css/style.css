@@ -17,6 +17,20 @@
     background-image: none;
 }
 
+/* Search input — subtle focus style */
+fieldset[role="group"] input[type="search"]:focus {
+    --pico-box-shadow: none;
+    box-shadow: none;
+    outline: none;
+    border-color: var(--pico-primary);
+}
+
+fieldset[role="group"]:has(input[type="search"]:focus) {
+    --pico-group-box-shadow-focus-with-button: 0 0 0 transparent;
+    box-shadow: none;
+    outline: none;
+}
+
 /* Dataset list (Wikipedia-style search results) */
 .dataset-list {
     margin-top: 1rem;

@@ -80,7 +80,7 @@ class ClusterProfile(BaseModel):
     cluster_id: int
     size: int
     percentage: float
-    centroid: Dict[str, float] = {}
+    centroid: Dict[str, Any] = {}
     top_features: List[Dict[str, Any]] = []
 
 

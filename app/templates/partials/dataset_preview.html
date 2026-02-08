@@ -106,7 +106,11 @@
                 <label>
                     <input type="checkbox" name="categorical_columns" value="{{ col.name }}" checked>
                     {{ col.name }}
-                    <small>{{ col.cardinality }} unique — {{ col.suggested_encoding }}</small>
+                    <small>{{ col.cardinality }} unique — {{ col.suggested_encoding }}
+                        {% if col.suggested_encoding == "label" %}
+                        <em>(assumes ordinal order)</em>
+                        {% endif %}
+                    </small>
                 </label>
                 {% endif %}
             {% endfor %}

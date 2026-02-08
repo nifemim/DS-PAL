@@ -6,7 +6,11 @@
     <ul>
         {% for enc in analysis.encoding_info %}
         <li><strong>{{ enc.original_column }}</strong>: {{ enc.encoding_type }} encoding
-            ({{ enc.cardinality }} categories{% if enc.new_columns|length > 1 %} &rarr; {{ enc.new_columns|length }} features{% endif %})</li>
+            ({{ enc.cardinality }} categories{% if enc.new_columns|length > 1 %} &rarr; {{ enc.new_columns|length }} features{% endif %})
+            {% if enc.encoding_type == "label" %}
+            <em>&mdash; assumes ordinal order</em>
+            {% endif %}
+        </li>
         {% endfor %}
     </ul>
 </details>

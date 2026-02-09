@@ -1,8 +1,8 @@
 # Brainstorm: Multi-Sheet Excel Support
 
 **Date:** 2026-02-08
-**Ticket:** TBD
-**Status:** Ready for planning
+**Ticket:** #20, #22
+**Status:** Implemented
 
 ## What We're Building
 

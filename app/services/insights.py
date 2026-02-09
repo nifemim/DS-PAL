@@ -1,7 +1,9 @@
 """LLM-powered cluster insights narrative."""
 from __future__ import annotations
 
+import json
 import logging
+import re
 
 import httpx
 
@@ -16,10 +18,11 @@ _ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
 _TIMEOUT = 60
 
 
-async def generate_insights(analysis: AnalysisOutput) -> dict[str, str] | None:
-    """Generate a plain-language narrative for clustering results.
+async def generate_insights(analysis: AnalysisOutput) -> dict | None:
+    """Generate structured insights for clustering results.
 
-    Returns a dict with keys 'overview', 'clusters', 'quality',
+    Returns a dict with 'overview' (str), 'clusters' (list of dicts
+    with id, label, description, size, percentage), 'quality' (str),
     or None if LLM is disabled or the call fails.
     """
     if not settings.insights_enabled:
@@ -34,36 +37,83 @@ async def generate_insights(analysis: AnalysisOutput) -> dict[str, str] | None:
             raw = await _call_ollama(system_prompt, user_prompt, max_tokens)
         else:
             raw = await _call_anthropic(system_prompt, user_prompt, max_tokens)
-        sections = split_sections(raw)
-        if sections.get("clusters", "").lower().count("cluster") < n_profiles:
-            logger.warning("Insights may not cover all %d clusters", n_profiles)
+
+        sections = _parse_response(raw)
+        if sections is None:
+            logger.warning("LLM returned invalid JSON")
+            return None
+
+        sections["clusters"] = _merge_profiles(
+            sections["clusters"], analysis.cluster_profiles
+        )
+
         return sections
     except Exception:
         logger.exception("LLM insights call failed")
         return None
 
 
-def split_sections(text: str) -> dict[str, str]:
-    """Split LLM response into three named sections.
+def _parse_response(raw: str) -> dict | None:
+    """Parse structured JSON from LLM response.
 
-    Tries '---' separator first, falls back to double-newline paragraph splitting.
+    Returns dict with keys 'overview', 'clusters', 'quality',
+    or None if parsing fails.
     """
-    # Try explicit --- separator
-    parts = [p.strip() for p in text.split("---") if p.strip()]
-    if len(parts) >= 3:
-        return {
-            "overview": parts[0],
-            "clusters": parts[1],
-            "quality": parts[2],
-        }
+    text = re.sub(r"^```\w*\n?", "", raw.strip())
+    text = re.sub(r"\n?```$", "", text).strip()
 
-    # Fallback: split on double newlines (paragraphs)
-    parts = [p.strip() for p in text.split("\n\n") if p.strip()]
+    try:
+        data = json.loads(text)
+    except (json.JSONDecodeError, ValueError):
+        return None
+
+    if not isinstance(data, dict):
+        return None
+    if not isinstance(data.get("overview"), str):
+        return None
+    if not isinstance(data.get("clusters"), list):
+        return None
+    if not isinstance(data.get("quality"), str):
+        return None
+
     return {
-        "overview": parts[0] if len(parts) > 0 else "",
-        "clusters": parts[1] if len(parts) > 1 else "",
-        "quality": parts[2] if len(parts) > 2 else "",
+        "overview": data["overview"],
+        "clusters": [
+            {
+                "id": c["id"],
+                "label": c["label"],
+                "description": c["description"],
+            }
+            for c in data["clusters"]
+            if isinstance(c, dict)
+            and "id" in c and "label" in c and "description" in c
+        ],
+        "quality": data["quality"],
     }
+
+
+def _merge_profiles(
+    llm_clusters: list[dict],
+    profiles: list,
+) -> list[dict]:
+    """Merge LLM cluster labels/descriptions with profile size data.
+
+    Produces one row per profile. If the LLM missed a cluster,
+    a fallback row is generated.
+    """
+    llm_by_id = {c["id"]: c for c in llm_clusters}
+    merged = []
+    for p in profiles:
+        cid = p.cluster_id
+        llm = llm_by_id.get(cid, {})
+        merged.append({
+            "id": cid,
+            "label": llm.get("label") or f"Cluster {cid}",
+            "description": llm.get("description") or "No description available.",
+            "size": p.size,
+            "percentage": p.percentage,
+        })
+    return merged
 
 
 def _build_prompt(analysis: AnalysisOutput) -> tuple[str, str]:
@@ -74,28 +124,21 @@ def _build_prompt(analysis: AnalysisOutput) -> tuple[str, str]:
     cluster_id_list = ", ".join(cluster_id_labels)
     n = len(analysis.cluster_profiles)
 
-    if n == 1:
-        cluster_instruction = f"Describe the single cluster (Cluster {cluster_id_list})."
-    else:
-        cluster_instruction = (
-            f"You MUST describe ALL {n} clusters (Cluster {cluster_id_list})."
-        )
-
     system = (
         "You are a data analyst writing a concise report. "
-        "Write exactly three paragraphs separated by a line containing only '---':\n\n"
-        "Paragraph 1 — Overview: Summarize the dataset, algorithm used, and number of clusters found.\n\n"
-        f"Paragraph 2 — Cluster Characteristics: {cluster_instruction} "
-        "For each cluster, give it an intuitive label based on its distinguishing features "
-        "(e.g. 'high-income urban professionals', 'budget-conscious young renters'). "
-        "Explain what makes each cluster unique by interpreting the feature values and z-deviations. "
-        "A positive z-deviation means the cluster is above average for that feature; negative means below. "
-        "Describe the real-world meaning of these patterns — don't just list numbers.\n\n"
-        "Paragraph 3 — Anomalies & Quality: Interpret the silhouette score "
-        "(below 0.25 = poor, 0.25-0.5 = fair, 0.5-0.75 = good, above 0.75 = excellent). "
-        "Comment on anomaly count and what might make those points unusual.\n\n"
-        "Use specific numbers. Be precise and professional. "
-        "Do not use markdown headings or bullet points — just plain paragraphs separated by ---"
+        "Respond with ONLY a valid JSON object (no markdown, no code fences) with this exact structure:\n\n"
+        '{"overview": "...", "clusters": [{"id": 0, "label": "...", "description": "..."}], "quality": "..."}\n\n'
+        "Fields:\n"
+        "- overview: 1-2 sentences summarizing the dataset, algorithm, and number of clusters.\n"
+        f"- clusters: An array with EXACTLY {n} entries, one for each cluster "
+        f"(IDs: {cluster_id_list}). "
+        "Each entry has 'id' (integer), 'label' (2-4 word intuitive name like "
+        "'high-income urbanites'), and 'description' (1 sentence explaining what "
+        "makes this cluster unique, interpreting feature values and z-deviations).\n"
+        "- quality: 1-2 sentences interpreting the silhouette score "
+        "(below 0.25 = poor, 0.25-0.5 = fair, 0.5-0.75 = good, above 0.75 = excellent) "
+        "and commenting on anomalies.\n\n"
+        "Use specific numbers. Be precise and professional."
     )
 
     # Build cluster summaries with full feature detail

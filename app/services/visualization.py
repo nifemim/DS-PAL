@@ -1,6 +1,7 @@
-"""Plotly visualization generation — 8 chart types."""
+"""Plotly visualization generation — 9 chart types."""
 import json
 import logging
+import math
 from typing import List
 
 import numpy as np
@@ -246,8 +247,39 @@ def anomaly_overlay(analysis: AnalysisOutput) -> ChartData:
     return _to_chart(fig, "anomaly_overlay", "Anomaly Detection Overlay")
 
 
+def feature_distributions(analysis: AnalysisOutput) -> ChartData:
+    """Per-column distribution box plots from summary stats (max 12 columns)."""
+    features = analysis.feature_names[:12]
+    n = len(features)
+    cols = min(n, 3)
+    rows = math.ceil(n / cols)
+
+    fig = make_subplots(rows=rows, cols=cols, subplot_titles=features)
+    for i, feat in enumerate(features):
+        r, c = divmod(i, cols)
+        stats = analysis.column_stats.get(feat, {})
+        if not stats:
+            continue
+        fig.add_trace(
+            go.Box(
+                lowerfence=[stats["min"]],
+                q1=[stats["q25"]],
+                median=[stats["median"]],
+                q3=[stats["q75"]],
+                upperfence=[stats["max"]],
+                mean=[stats["mean"]],
+                name=feat,
+                showlegend=False,
+            ),
+            row=r + 1, col=c + 1,
+        )
+
+    fig.update_layout(title="Feature Distributions", height=300 * rows)
+    return _to_chart(fig, "feature_distributions", "Feature Distributions")
+
+
 def generate_all(analysis: AnalysisOutput) -> List[ChartData]:
-    """Generate all 8 chart types from an analysis output."""
+    """Generate all 9 chart types from an analysis output."""
     charts = []
     generators = [
         scatter_2d,
@@ -258,6 +290,7 @@ def generate_all(analysis: AnalysisOutput) -> List[ChartData]:
         silhouette_plot,
         parallel_coordinates,
         anomaly_overlay,
+        feature_distributions,
     ]
 
     for gen in generators:

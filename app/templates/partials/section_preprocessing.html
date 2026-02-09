@@ -1,0 +1,55 @@
+<h3>Pre-Processing</h3>
+
+<!-- Before/after feature count -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="value">{{ analysis.original_column_count }}</div>
+        <div class="label">Original Columns</div>
+    </div>
+    <div class="stat-card">
+        <div class="value">{{ analysis.feature_names|length }}</div>
+        <div class="label">Features Used</div>
+    </div>
+</div>
+
+{% if analysis.encoding_info %}
+<details open>
+    <summary><strong>Column Transformations Applied</strong></summary>
+    <ul>
+        {% for enc in analysis.encoding_info %}
+        <li><strong>{{ enc.original_column }}</strong>: {{ enc.encoding_type }} encoding
+            ({{ enc.cardinality }} categories{% if enc.new_columns|length > 1 %} &rarr; {{ enc.new_columns|length }} features{% endif %})
+            {% if enc.encoding_type == "label" %}
+            <em>&mdash; assumes ordinal order</em>
+            {% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+</details>
+{% endif %}
+
+{% if analysis.dropped_columns %}
+<details open>
+    <summary><strong>Dropped Columns</strong></summary>
+    <table>
+        <thead>
+            <tr>
+                <th>Column</th>
+                <th>Reason</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for dc in analysis.dropped_columns %}
+            <tr>
+                <td>{{ dc.column }}</td>
+                <td>{{ dc.reason }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</details>
+{% endif %}
+
+{% if not analysis.encoding_info and not analysis.dropped_columns %}
+<p>All columns are numeric. No transformations were applied.</p>
+{% endif %}

@@ -15,7 +15,10 @@ from app.services.analysis_engine import (
     detect_anomalies,
     compute_stats,
     run,
+    EncodingResult,
+    PreprocessResult,
 )
+from app.services.visualization import feature_distributions, generate_all
 
 
 @pytest.fixture
@@ -38,21 +41,22 @@ def mixed_df():
 
 
 def test_preprocess(iris_df):
-    numeric_df, scaled_df, features, enc_info = preprocess(iris_df)
-    assert len(features) == 4
-    assert numeric_df.shape == iris_df.shape
-    assert scaled_df.shape == iris_df.shape
-    assert enc_info == []
+    prep = preprocess(iris_df)
+    assert isinstance(prep, PreprocessResult)
+    assert len(prep.feature_names) == 4
+    assert prep.numeric_df.shape == iris_df.shape
+    assert prep.scaled_df.shape == iris_df.shape
+    assert prep.encoding_info == []
     # Scaled should have ~0 mean and ~1 std
-    assert abs(scaled_df.mean().mean()) < 0.01
-    assert abs(scaled_df.std().mean() - 1.0) < 0.1
+    assert abs(prep.scaled_df.mean().mean()) < 0.01
+    assert abs(prep.scaled_df.std().mean() - 1.0) < 0.1
 
 
 def test_preprocess_with_columns(iris_df):
     cols = iris_df.columns[:2].tolist()
-    numeric_df, scaled_df, features, _ = preprocess(iris_df, columns=cols)
-    assert len(features) == 2
-    assert numeric_df.shape[1] == 2
+    prep = preprocess(iris_df, columns=cols)
+    assert len(prep.feature_names) == 2
+    assert prep.numeric_df.shape[1] == 2
 
 
 def test_preprocess_too_few_columns(iris_df):
@@ -61,21 +65,21 @@ def test_preprocess_too_few_columns(iris_df):
 
 
 def test_reduce_dimensions(iris_df):
-    _, scaled_df, _, _ = preprocess(iris_df)
-    coords_2d, coords_3d = reduce_dimensions(scaled_df)
+    prep = preprocess(iris_df)
+    coords_2d, coords_3d = reduce_dimensions(prep.scaled_df)
     assert coords_2d.shape == (150, 2)
     assert coords_3d.shape == (150, 3)
 
 
 def test_find_optimal_k(iris_df):
-    _, scaled_df, _, _ = preprocess(iris_df)
-    k = find_optimal_k(scaled_df)
+    prep = preprocess(iris_df)
+    k = find_optimal_k(prep.scaled_df)
     assert 2 <= k <= 10
 
 
 def test_cluster_kmeans(iris_df):
-    _, scaled_df, _, _ = preprocess(iris_df)
-    labels, n_clusters, sil, params = cluster(scaled_df, "kmeans", n_clusters=3)
+    prep = preprocess(iris_df)
+    labels, n_clusters, sil, params = cluster(prep.scaled_df, "kmeans", n_clusters=3)
     assert n_clusters == 3
     assert len(labels) == 150
     assert len(set(labels)) == 3
@@ -84,23 +88,23 @@ def test_cluster_kmeans(iris_df):
 
 
 def test_cluster_dbscan(iris_df):
-    _, scaled_df, _, _ = preprocess(iris_df)
-    labels, n_clusters, sil, params = cluster(scaled_df, "dbscan")
+    prep = preprocess(iris_df)
+    labels, n_clusters, sil, params = cluster(prep.scaled_df, "dbscan")
     assert n_clusters >= 0
     assert len(labels) == 150
 
 
 def test_cluster_hierarchical(iris_df):
-    _, scaled_df, _, _ = preprocess(iris_df)
-    labels, n_clusters, sil, params = cluster(scaled_df, "hierarchical", n_clusters=3)
+    prep = preprocess(iris_df)
+    labels, n_clusters, sil, params = cluster(prep.scaled_df, "hierarchical", n_clusters=3)
     assert n_clusters == 3
     assert len(labels) == 150
 
 
 def test_profile_clusters(iris_df):
-    numeric_df, scaled_df, features, _ = preprocess(iris_df)
-    labels, _, _, _ = cluster(scaled_df, "kmeans", n_clusters=3)
-    profiles = profile_clusters(numeric_df, scaled_df, labels, features)
+    prep = preprocess(iris_df)
+    labels, _, _, _ = cluster(prep.scaled_df, "kmeans", n_clusters=3)
+    profiles = profile_clusters(prep.numeric_df, prep.scaled_df, labels, prep.feature_names)
     assert len(profiles) == 3
     total_size = sum(p.size for p in profiles)
     assert total_size == 150
@@ -111,8 +115,8 @@ def test_profile_clusters(iris_df):
 
 
 def test_detect_anomalies(iris_df):
-    _, scaled_df, _, _ = preprocess(iris_df)
-    anom_labels, scores = detect_anomalies(scaled_df, contamination=0.05)
+    prep = preprocess(iris_df)
+    anom_labels, scores = detect_anomalies(prep.scaled_df, contamination=0.05)
     assert len(anom_labels) == 150
     assert len(scores) == 150
     n_anomalies = anom_labels.sum()
@@ -121,11 +125,11 @@ def test_detect_anomalies(iris_df):
 
 
 def test_compute_stats(iris_df):
-    numeric_df, _, features, _ = preprocess(iris_df)
-    corr, stats = compute_stats(numeric_df, features)
+    prep = preprocess(iris_df)
+    corr, stats = compute_stats(prep.numeric_df, prep.feature_names)
     assert len(corr) == 4
     assert len(stats) == 4
-    for feat in features:
+    for feat in prep.feature_names:
         assert "mean" in stats[feat]
         assert "std" in stats[feat]
         assert feat in corr[feat]
@@ -152,6 +156,10 @@ def test_run_full_pipeline(iris_df):
     assert len(result.feature_names) == 4
     assert result.algorithm == "kmeans"
     assert result.encoding_info == []
+    # New fields
+    assert result.original_column_count == 4
+    assert isinstance(result.missing_values, dict)
+    assert isinstance(result.dropped_columns, list)
 
 
 # --- Categorical encoding tests ---
@@ -162,25 +170,26 @@ def test_encode_categoricals_one_hot():
     df = pd.DataFrame({
         "color": ["red", "blue", "green", "red", "blue", "green", "red", "blue", "green", "red"],
     })
-    encoded, info = encode_categoricals(df, ["color"])
-    assert len(info) == 1
-    assert info[0]["encoding_type"] == "one-hot"
-    assert info[0]["original_column"] == "color"
+    enc_result = encode_categoricals(df, ["color"])
+    assert isinstance(enc_result, EncodingResult)
+    assert len(enc_result.encoding_info) == 1
+    assert enc_result.encoding_info[0]["encoding_type"] == "one-hot"
+    assert enc_result.encoding_info[0]["original_column"] == "color"
     # 3 unique - drop_first = 2 columns
-    assert encoded.shape[1] == 2
-    assert encoded.shape[0] == 10
+    assert enc_result.encoded_df.shape[1] == 2
+    assert enc_result.encoded_df.shape[0] == 10
 
 
 def test_encode_categoricals_label():
     """High-cardinality column produces single integer column."""
     values = [f"cat_{i}" for i in range(15)]
     df = pd.DataFrame({"category": values * 2})
-    encoded, info = encode_categoricals(df, ["category"])
-    assert len(info) == 1
-    assert info[0]["encoding_type"] == "label"
-    assert encoded.shape[1] == 1
+    enc_result = encode_categoricals(df, ["category"])
+    assert len(enc_result.encoding_info) == 1
+    assert enc_result.encoding_info[0]["encoding_type"] == "label"
+    assert enc_result.encoded_df.shape[1] == 1
     # Label encoded values should be integers
-    assert encoded["category"].dtype in [np.int64, np.int32, int]
+    assert enc_result.encoded_df["category"].dtype in [np.int64, np.int32, int]
 
 
 def test_encode_categoricals_auto_select():
@@ -190,8 +199,8 @@ def test_encode_categoricals_auto_select():
         "low_card": ["a", "b", "c"] * 20,
         "high_card": (high_card_values * 4)[:60],
     })
-    encoded, info = encode_categoricals(df, ["low_card", "high_card"])
-    info_map = {i["original_column"]: i for i in info}
+    enc_result = encode_categoricals(df, ["low_card", "high_card"])
+    info_map = {i["original_column"]: i for i in enc_result.encoding_info}
     assert info_map["low_card"]["encoding_type"] == "one-hot"
     assert info_map["high_card"]["encoding_type"] == "label"
 
@@ -201,10 +210,10 @@ def test_encode_boolean_columns():
     df = pd.DataFrame({
         "flag": [True, False, True, False, True, False, True, False, True, False],
     })
-    encoded, info = encode_categoricals(df, ["flag"])
-    assert len(info) == 1
-    assert info[0]["encoding_type"] == "boolean"
-    assert set(encoded["flag"].unique()) <= {0, 1}
+    enc_result = encode_categoricals(df, ["flag"])
+    assert len(enc_result.encoding_info) == 1
+    assert enc_result.encoding_info[0]["encoding_type"] == "boolean"
+    assert set(enc_result.encoded_df["flag"].unique()) <= {0, 1}
 
 
 def test_encode_nan_handling():
@@ -212,10 +221,10 @@ def test_encode_nan_handling():
     df = pd.DataFrame({
         "color": ["red", "blue", None, "red", "blue", None, "red", "blue", None, "red"],
     })
-    encoded, info = encode_categoricals(df, ["color"])
-    assert len(info) == 1
+    enc_result = encode_categoricals(df, ["color"])
+    assert len(enc_result.encoding_info) == 1
     # Should not have any NaN in the result
-    assert not encoded.isna().any().any()
+    assert not enc_result.encoded_df.isna().any().any()
 
 
 def test_encode_id_like_excluded():
@@ -224,11 +233,14 @@ def test_encode_id_like_excluded():
         "id": [f"user_{i}" for i in range(100)],
         "category": ["a", "b"] * 50,
     })
-    encoded, info = encode_categoricals(df, ["id", "category"])
+    enc_result = encode_categoricals(df, ["id", "category"])
     # Only category should be encoded, id should be excluded
-    info_cols = [i["original_column"] for i in info]
+    info_cols = [i["original_column"] for i in enc_result.encoding_info]
     assert "id" not in info_cols
     assert "category" in info_cols
+    # id should appear in skipped_columns
+    skipped_cols = [s["column"] for s in enc_result.skipped_columns]
+    assert "id" in skipped_cols
 
 
 def test_encode_single_value_excluded():
@@ -237,10 +249,13 @@ def test_encode_single_value_excluded():
         "const": ["same"] * 20,
         "varied": ["a", "b", "c", "d"] * 5,
     })
-    encoded, info = encode_categoricals(df, ["const", "varied"])
-    info_cols = [i["original_column"] for i in info]
+    enc_result = encode_categoricals(df, ["const", "varied"])
+    info_cols = [i["original_column"] for i in enc_result.encoding_info]
     assert "const" not in info_cols
     assert "varied" in info_cols
+    # const should appear in skipped_columns
+    skipped_cols = [s["column"] for s in enc_result.skipped_columns]
+    assert "const" in skipped_cols
 
 
 def test_encode_numeric_as_string():
@@ -248,23 +263,23 @@ def test_encode_numeric_as_string():
     df = pd.DataFrame({
         "price": ["10.5", "20.3", "15.0", "30.1", "25.5", "18.0", "22.2", "33.3", "44.4", "55.5"] * 5,
     })
-    encoded, info = encode_categoricals(df, ["price"])
-    assert len(info) == 1
-    assert info[0]["encoding_type"] == "numeric-coerce"
-    assert pd.api.types.is_numeric_dtype(encoded["price"])
+    enc_result = encode_categoricals(df, ["price"])
+    assert len(enc_result.encoding_info) == 1
+    assert enc_result.encoding_info[0]["encoding_type"] == "numeric-coerce"
+    assert pd.api.types.is_numeric_dtype(enc_result.encoded_df["price"])
 
 
 def test_preprocess_with_categoricals(mixed_df):
     """Full preprocess pipeline with mixed types."""
-    combined_df, scaled_df, features, enc_info = preprocess(
+    prep = preprocess(
         mixed_df, columns=["age", "income"], categorical_columns=["city", "gender"]
     )
     # Should have numeric cols + encoded categorical cols
-    assert "age" in features
-    assert "income" in features
-    assert len(features) > 2  # categoricals added
-    assert len(enc_info) > 0
-    assert not scaled_df.isna().any().any()
+    assert "age" in prep.feature_names
+    assert "income" in prep.feature_names
+    assert len(prep.feature_names) > 2  # categoricals added
+    assert len(prep.encoding_info) > 0
+    assert not prep.scaled_df.isna().any().any()
 
 
 def test_preprocess_all_categorical():
@@ -275,11 +290,11 @@ def test_preprocess_all_categorical():
         "size": ["S", "M", "L"] * 3 + ["S"],
     })
     # Select no numeric columns but provide categoricals
-    combined_df, scaled_df, features, enc_info = preprocess(
+    prep = preprocess(
         df, columns=[], categorical_columns=["color", "size"]
     )
-    assert len(features) >= 2
-    assert len(enc_info) == 2
+    assert len(prep.feature_names) >= 2
+    assert len(prep.encoding_info) == 2
 
 
 def test_run_full_pipeline_with_categoricals(mixed_df):
@@ -306,11 +321,11 @@ def test_dimension_cap():
     vals_b = [f"b_{i}" for i in range(60)]
     # Repeat so cardinality ratio < 0.9 (60/180 = 0.33)
     df = pd.DataFrame({"cat_a": vals_a * 3, "cat_b": vals_b * 3})
-    encoded, info = encode_categoricals(df, ["cat_a", "cat_b"], cardinality_threshold=100, max_total_features=100)
+    enc_result = encode_categoricals(df, ["cat_a", "cat_b"], cardinality_threshold=100, max_total_features=100)
     # At least one should be downgraded to label
-    types = [i["encoding_type"] for i in info]
+    types = [i["encoding_type"] for i in enc_result.encoding_info]
     assert "label" in types
-    assert encoded.shape[1] <= 100
+    assert enc_result.encoded_df.shape[1] <= 100
 
 
 # --- Reverse-mapped centroids tests ---
@@ -367,11 +382,11 @@ class TestReverseMappedCentroids:
         """encode_categoricals adds label_mapping list to label-encoded entries."""
         values = [f"cat_{i}" for i in range(15)]
         df = pd.DataFrame({"category": values * 2})
-        _, info = encode_categoricals(df, ["category"])
-        assert len(info) == 1
-        assert "label_mapping" in info[0]
-        assert isinstance(info[0]["label_mapping"], list)
-        assert len(info[0]["label_mapping"]) == 15
+        enc_result = encode_categoricals(df, ["category"])
+        assert len(enc_result.encoding_info) == 1
+        assert "label_mapping" in enc_result.encoding_info[0]
+        assert isinstance(enc_result.encoding_info[0]["label_mapping"], list)
+        assert len(enc_result.encoding_info[0]["label_mapping"]) == 15
 
 
 # --- Adaptive DBSCAN eps tests ---
@@ -396,8 +411,124 @@ class TestAutoEps:
 
     def test_dbscan_uses_auto_eps(self, iris_df):
         """cluster() with algorithm='dbscan' uses _auto_eps, not hardcoded 0.5."""
-        _, scaled_df, _, _ = preprocess(iris_df)
-        labels, n_clusters, sil, params = cluster(scaled_df, "dbscan")
+        prep = preprocess(iris_df)
+        labels, n_clusters, sil, params = cluster(prep.scaled_df, "dbscan")
         # eps should be data-dependent, not always 0.5
         assert "eps" in params
         assert isinstance(params["eps"], float)
+
+
+# --- New: PreprocessResult and EncodingResult dataclass tests ---
+
+
+class TestPreprocessResult:
+    """Tests for PreprocessResult dataclass."""
+
+    def test_preprocess_returns_dataclass(self, iris_df):
+        """preprocess() returns PreprocessResult with named fields."""
+        prep = preprocess(iris_df)
+        assert isinstance(prep, PreprocessResult)
+        assert hasattr(prep, "numeric_df")
+        assert hasattr(prep, "scaled_df")
+        assert hasattr(prep, "feature_names")
+        assert hasattr(prep, "encoding_info")
+        assert hasattr(prep, "dropped_columns")
+
+    def test_dropped_columns_reported(self):
+        """PreprocessResult includes dropped column info for >50% NaN columns."""
+        df = pd.DataFrame({
+            "good": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0],
+            "mostly_nan": [1.0, None, None, None, None, None, None, None, None, None],
+            "also_good": [10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0],
+        })
+        prep = preprocess(df)
+        dropped_names = [d["column"] for d in prep.dropped_columns]
+        assert "mostly_nan" in dropped_names
+
+    def test_encoding_result_skipped_columns(self):
+        """EncodingResult includes skipped_columns for ID-like and constant columns."""
+        df = pd.DataFrame({
+            "id": [f"user_{i}" for i in range(100)],
+            "const": ["same"] * 100,
+            "category": ["a", "b"] * 50,
+        })
+        enc_result = encode_categoricals(df, ["id", "const", "category"])
+        assert isinstance(enc_result, EncodingResult)
+        skipped_names = [s["column"] for s in enc_result.skipped_columns]
+        assert "id" in skipped_names
+        assert "const" in skipped_names
+        assert "category" not in skipped_names
+
+
+class TestMissingValues:
+    """Tests for missing_values computation in run()."""
+
+    def test_missing_values_computed(self):
+        """run() populates missing_values field from pre-imputation DataFrame."""
+        df = pd.DataFrame({
+            "a": [1.0, 2.0, None, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0],
+            "b": [10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0],
+        })
+        result = run(df, dataset_name="test", dataset_source="test", dataset_id="test")
+        assert "a" in result.missing_values
+        assert result.missing_values["a"] == 1
+        assert "b" not in result.missing_values
+
+    def test_no_missing_values(self, iris_df):
+        """Iris dataset has no missing values — dict should be empty."""
+        result = run(iris_df, dataset_name="Iris", dataset_source="test", dataset_id="iris")
+        assert result.missing_values == {}
+
+    def test_original_column_count(self, iris_df):
+        """run() sets original_column_count to number of columns in raw DataFrame."""
+        result = run(iris_df, dataset_name="Iris", dataset_source="test", dataset_id="iris")
+        assert result.original_column_count == 4
+
+
+class TestFeatureDistributions:
+    """Tests for the feature_distributions chart generator."""
+
+    def test_feature_distributions_generated(self, iris_df):
+        """New chart type included in generate_all output."""
+        result = run(iris_df, dataset_name="Iris", dataset_source="test", dataset_id="iris")
+        charts = generate_all(result)
+        chart_types = [c.chart_type for c in charts]
+        assert "feature_distributions" in chart_types
+
+    def test_feature_distributions_chart(self, iris_df):
+        """feature_distributions produces a valid ChartData."""
+        result = run(iris_df, dataset_name="Iris", dataset_source="test", dataset_id="iris")
+        chart = feature_distributions(result)
+        assert chart.chart_type == "feature_distributions"
+        assert chart.title == "Feature Distributions"
+        assert len(chart.html) > 0
+        assert len(chart.plotly_json) > 0
+
+    def test_feature_distributions_empty_stats(self):
+        """feature_distributions handles missing column_stats gracefully."""
+        from app.models.schemas import AnalysisOutput
+        # Minimal AnalysisOutput with empty column_stats
+        analysis = AnalysisOutput(
+            id="test",
+            title="Test",
+            dataset_source="test",
+            dataset_id="test",
+            dataset_name="Test",
+            num_rows=10,
+            num_columns=2,
+            column_names=["a", "b"],
+            algorithm="kmeans",
+            n_clusters=2,
+            cluster_profiles=[],
+            cluster_labels=[0] * 10,
+            feature_names=["a", "b"],
+            column_stats={},
+        )
+        chart = feature_distributions(analysis)
+        assert chart.chart_type == "feature_distributions"
+
+    def test_generate_all_produces_9_charts(self, iris_df):
+        """generate_all produces 9 charts (8 existing + feature_distributions)."""
+        result = run(iris_df, dataset_name="Iris", dataset_source="test", dataset_id="iris")
+        charts = generate_all(result)
+        assert len(charts) == 9

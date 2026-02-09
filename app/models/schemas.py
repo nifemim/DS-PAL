@@ -84,6 +84,11 @@ class ClusterProfile(BaseModel):
     top_features: List[Dict[str, Any]] = []
 
 
+class DroppedColumn(BaseModel):
+    column: str
+    reason: str
+
+
 class AnalysisOutput(BaseModel):
     id: str
     title: str
@@ -108,6 +113,9 @@ class AnalysisOutput(BaseModel):
     column_stats: Dict[str, Dict[str, Any]] = {}
     feature_names: List[str] = []
     encoding_info: List[Dict[str, Any]] = []
+    missing_values: Dict[str, int] = {}
+    dropped_columns: List[DroppedColumn] = []
+    original_column_count: int = 0
     dataset_description: str = Field(default="", max_length=500)
 
     @field_validator("dataset_description")

@@ -82,13 +82,14 @@ def test_anomaly_overlay(analysis_output):
 
 def test_generate_all(analysis_output):
     charts = generate_all(analysis_output)
-    assert len(charts) == 8
+    assert len(charts) == 9
     chart_types = {c.chart_type for c in charts}
     assert "scatter_2d" in chart_types
     assert "scatter_3d" in chart_types
     assert "cluster_sizes" in chart_types
     assert "correlation_heatmap" in chart_types
     assert "anomaly_overlay" in chart_types
+    assert "feature_distributions" in chart_types
 
     for chart in charts:
         assert chart.html

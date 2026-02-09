@@ -2,6 +2,7 @@
 import logging
 import math
 import uuid
+from dataclasses import dataclass
 from typing import Dict, List, Optional, Any, Tuple
 
 import numpy as np
@@ -12,9 +13,27 @@ from sklearn.ensemble import IsolationForest
 from sklearn.metrics import silhouette_score
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 
-from app.models.schemas import AnalysisOutput, ClusterProfile
+from app.models.schemas import AnalysisOutput, ClusterProfile, DroppedColumn
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class EncodingResult:
+    """Result of categorical encoding."""
+    encoded_df: pd.DataFrame
+    encoding_info: list
+    skipped_columns: list
+
+
+@dataclass(frozen=True)
+class PreprocessResult:
+    """Result of the full preprocessing pipeline."""
+    numeric_df: pd.DataFrame
+    scaled_df: pd.DataFrame
+    feature_names: list
+    encoding_info: list
+    dropped_columns: list
 
 
 def encode_categoricals(
@@ -22,18 +41,19 @@ def encode_categoricals(
     categorical_columns: List[str],
     cardinality_threshold: int = 10,
     max_total_features: int = 100,
-) -> Tuple[pd.DataFrame, List[Dict[str, Any]]]:
-    """Encode categorical columns. Returns encoded DataFrame and encoding metadata."""
+) -> EncodingResult:
+    """Encode categorical columns. Returns EncodingResult with encoded DataFrame, metadata, and skipped columns."""
     if not categorical_columns:
-        return pd.DataFrame(index=df.index), []
+        return EncodingResult(encoded_df=pd.DataFrame(index=df.index), encoding_info=[], skipped_columns=[])
 
     encoding_info = []
     encoded_parts = []
+    skipped_columns = []
 
     # Filter to columns that actually exist in the DataFrame
     cat_cols = [c for c in categorical_columns if c in df.columns]
     if not cat_cols:
-        return pd.DataFrame(index=df.index), []
+        return EncodingResult(encoded_df=pd.DataFrame(index=df.index), encoding_info=[], skipped_columns=[])
 
     cat_df = df[cat_cols].copy()
 
@@ -54,12 +74,14 @@ def encode_categoricals(
         # Skip single-value columns
         if nunique <= 1:
             logger.info("Skipping constant column: %s", col)
+            skipped_columns.append({"column": col, "reason": "Single value"})
             continue
 
         # Skip ID-like columns (cardinality ratio > 0.9)
         cardinality_ratio = nunique / len(df) if len(df) > 0 else 0
         if cardinality_ratio > 0.9:
             logger.info("Skipping ID-like column: %s (ratio=%.2f)", col, cardinality_ratio)
+            skipped_columns.append({"column": col, "reason": f"ID-like ({nunique} unique values)"})
             continue
 
         # Boolean columns: cast to int
@@ -146,21 +168,23 @@ def encode_categoricals(
             current_features += dummies.shape[1]
 
     if not encoded_parts:
-        return pd.DataFrame(index=df.index), encoding_info
+        return EncodingResult(encoded_df=pd.DataFrame(index=df.index), encoding_info=encoding_info, skipped_columns=skipped_columns)
 
     result = pd.concat(encoded_parts, axis=1)
-    return result, encoding_info
+    return EncodingResult(encoded_df=result, encoding_info=encoding_info, skipped_columns=skipped_columns)
 
 
 def preprocess(
     df: pd.DataFrame,
     columns: Optional[List[str]] = None,
     categorical_columns: Optional[List[str]] = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame, List[str], List[Dict[str, Any]]]:
+) -> PreprocessResult:
     """Select numeric columns, encode categoricals, handle missing values, scale.
 
-    Returns (original_df, scaled_df, feature_names, encoding_info).
+    Returns PreprocessResult with numeric_df, scaled_df, feature_names, encoding_info, dropped_columns.
     """
+    dropped_columns: List[Dict[str, str]] = []
+
     # Numeric pipeline
     if columns:
         numeric_df = df[columns].select_dtypes(include=["number"])
@@ -169,6 +193,9 @@ def preprocess(
 
     # Drop columns with >50% NaN
     threshold = len(numeric_df) * 0.5
+    for col in numeric_df.columns:
+        if numeric_df[col].count() < threshold:
+            dropped_columns.append({"column": col, "reason": "Over 50% missing values"})
     numeric_df = numeric_df.dropna(axis=1, thresh=int(threshold))
 
     # Drop rows that are entirely NaN, then impute remaining NaNs with median
@@ -181,9 +208,11 @@ def preprocess(
     # Categorical pipeline
     encoding_info: List[Dict[str, Any]] = []
     if categorical_columns:
-        encoded_df, encoding_info = encode_categoricals(df.loc[numeric_df.index], categorical_columns)
-        if not encoded_df.empty:
-            combined_df = pd.concat([numeric_df, encoded_df], axis=1)
+        enc_result = encode_categoricals(df.loc[numeric_df.index], categorical_columns)
+        encoding_info = enc_result.encoding_info
+        dropped_columns.extend(enc_result.skipped_columns)
+        if not enc_result.encoded_df.empty:
+            combined_df = pd.concat([numeric_df, enc_result.encoded_df], axis=1)
         else:
             combined_df = numeric_df
     else:
@@ -194,6 +223,8 @@ def preprocess(
     zero_var_cols = variances[variances == 0].index.tolist()
     if zero_var_cols:
         logger.info("Dropping zero-variance columns: %s", zero_var_cols)
+        for col in zero_var_cols:
+            dropped_columns.append({"column": col, "reason": "Zero variance"})
         combined_df = combined_df.drop(columns=zero_var_cols)
 
     feature_names = combined_df.columns.tolist()
@@ -207,7 +238,13 @@ def preprocess(
     scaled_array = scaler.fit_transform(combined_df)
     scaled_df = pd.DataFrame(scaled_array, columns=feature_names, index=combined_df.index)
 
-    return combined_df, scaled_df, feature_names, encoding_info
+    return PreprocessResult(
+        numeric_df=combined_df,
+        scaled_df=scaled_df,
+        feature_names=feature_names,
+        encoding_info=encoding_info,
+        dropped_columns=dropped_columns,
+    )
 
 
 def reduce_dimensions(
@@ -438,24 +475,32 @@ def run(
     """Run the full analysis pipeline."""
     analysis_id = str(uuid.uuid4())
 
+    # Compute missing values BEFORE preprocessing
+    missing_values = {
+        col: count
+        for col in df.columns
+        if (count := int(df[col].isna().sum())) > 0
+    }
+    original_column_count = len(df.columns)
+
     # 1. Preprocess
-    numeric_df, scaled_df, feature_names, encoding_info = preprocess(df, columns, categorical_columns)
-    logger.info("Preprocessed: %d rows x %d features", len(numeric_df), len(feature_names))
+    prep = preprocess(df, columns, categorical_columns)
+    logger.info("Preprocessed: %d rows x %d features", len(prep.numeric_df), len(prep.feature_names))
 
     # 2. PCA
-    coords_2d, coords_3d = reduce_dimensions(scaled_df)
+    coords_2d, coords_3d = reduce_dimensions(prep.scaled_df)
 
     # 3. Cluster
-    labels, n_clust, sil_score, params = cluster(scaled_df, algorithm, n_clusters)
+    labels, n_clust, sil_score, params = cluster(prep.scaled_df, algorithm, n_clusters)
 
     # 4. Profile clusters
-    profiles = profile_clusters(numeric_df, scaled_df, labels, feature_names, encoding_info)
+    profiles = profile_clusters(prep.numeric_df, prep.scaled_df, labels, prep.feature_names, prep.encoding_info)
 
     # 5. Anomaly detection
-    anomaly_labels, anomaly_scores = detect_anomalies(scaled_df, contamination)
+    anomaly_labels, anomaly_scores = detect_anomalies(prep.scaled_df, contamination)
 
     # 6. Statistics
-    corr_matrix, col_stats = compute_stats(numeric_df, feature_names)
+    corr_matrix, col_stats = compute_stats(prep.numeric_df, prep.feature_names)
 
     title = f"{algorithm.upper()} Analysis of {dataset_name}"
 
@@ -466,8 +511,8 @@ def run(
         dataset_id=dataset_id,
         dataset_name=dataset_name,
         dataset_url=dataset_url,
-        num_rows=len(numeric_df),
-        num_columns=len(feature_names),
+        num_rows=len(prep.numeric_df),
+        num_columns=len(prep.feature_names),
         column_names=df.columns.tolist(),
         algorithm=algorithm,
         params=params,
@@ -481,6 +526,12 @@ def run(
         anomaly_scores=anomaly_scores.tolist(),
         correlation_matrix=corr_matrix,
         column_stats=col_stats,
-        feature_names=feature_names,
-        encoding_info=encoding_info,
+        feature_names=prep.feature_names,
+        encoding_info=prep.encoding_info,
+        missing_values=missing_values,
+        dropped_columns=[
+            DroppedColumn(column=d["column"], reason=d["reason"])
+            for d in prep.dropped_columns
+        ],
+        original_column_count=original_column_count,
     )

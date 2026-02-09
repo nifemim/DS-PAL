@@ -85,6 +85,37 @@ window.addEventListener("storage", function (e) {
     });
 })();
 
+// --- Analysis tab switching ---
+document.body.addEventListener("click", function (event) {
+    var btn = event.target.closest("[data-tab]");
+    if (!btn) return;
+
+    var tabId = btn.getAttribute("data-tab");
+    var tablist = btn.closest("[role='tablist']");
+    if (!tablist) return;
+
+    // Update tab buttons
+    tablist.querySelectorAll("[role='tab']").forEach(function (t) {
+        t.classList.remove("active");
+        t.setAttribute("aria-selected", "false");
+    });
+    btn.classList.add("active");
+    btn.setAttribute("aria-selected", "true");
+
+    // Show/hide panels
+    var panels = tablist.parentElement.querySelectorAll("[role='tabpanel']");
+    panels.forEach(function (panel) {
+        var isTarget = panel.id === "tab-" + tabId;
+        panel.style.display = isTarget ? "" : "none";
+        // Resize Plotly charts in newly visible panel
+        if (isTarget && typeof Plotly !== "undefined") {
+            panel.querySelectorAll("[data-plotly]").forEach(function (el) {
+                Plotly.Plots.resize(el);
+            });
+        }
+    });
+});
+
 // --- HTMX utilities ---
 
 // Clear any stuck htmx-request classes on page load

@@ -1,0 +1,89 @@
+<h3>Exploratory Data Analysis</h3>
+
+<!-- Summary stats -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="value">{{ analysis.num_rows }}</div>
+        <div class="label">Data Points</div>
+    </div>
+    <div class="stat-card">
+        <div class="value">{{ analysis.feature_names|length }}</div>
+        <div class="label">Features Used</div>
+    </div>
+    <div class="stat-card">
+        <div class="value">{{ analysis.anomaly_labels|select("equalto", 1)|list|length }}</div>
+        <div class="label">Anomalies</div>
+    </div>
+</div>
+
+{% if analysis.missing_values %}
+<details>
+    <summary><strong>Missing Values</strong></summary>
+    <table>
+        <thead>
+            <tr>
+                <th>Column</th>
+                <th>Missing Count</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for col, count in analysis.missing_values.items() %}
+            <tr>
+                <td>{{ col }}</td>
+                <td>{{ count }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</details>
+{% else %}
+<p><small>No missing values detected.</small></p>
+{% endif %}
+
+{% if analysis.column_stats %}
+<details>
+    <summary><strong>Column Statistics</strong></summary>
+    <div class="preview-table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Feature</th>
+                    <th>Mean</th>
+                    <th>Std</th>
+                    <th>Min</th>
+                    <th>Q25</th>
+                    <th>Median</th>
+                    <th>Q75</th>
+                    <th>Max</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for feat, stats in analysis.column_stats.items() %}
+                <tr>
+                    <td>{{ feat }}</td>
+                    <td>{{ stats.mean }}</td>
+                    <td>{{ stats.std }}</td>
+                    <td>{{ stats.min }}</td>
+                    <td>{{ stats.q25 }}</td>
+                    <td>{{ stats.median }}</td>
+                    <td>{{ stats.q75 }}</td>
+                    <td>{{ stats.max }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</details>
+{% endif %}
+
+<!-- EDA charts -->
+<div class="charts-grid">
+    {% for chart in charts if chart.chart_type in ["correlation_heatmap", "feature_boxplots", "anomaly_overlay", "feature_distributions"] %}
+    <div class="chart-container">
+        <h4>{{ chart.title }}</h4>
+        <div data-plotly='{{ chart.plotly_json }}' style="width:100%; min-height:400px;">
+            {{ chart.html|safe }}
+        </div>
+    </div>
+    {% endfor %}
+</div>

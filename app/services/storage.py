@@ -30,6 +30,9 @@ async def save_analysis(
             "cluster_labels": analysis.cluster_labels,
             "anomaly_labels": analysis.anomaly_labels,
             "column_stats": analysis.column_stats,
+            "missing_values": analysis.missing_values,
+            "dropped_columns": [d.model_dump() for d in analysis.dropped_columns],
+            "original_column_count": analysis.original_column_count,
         })
         column_names = json.dumps(analysis.column_names)
 

@@ -1,6 +1,13 @@
 {% extends "base.html" %}
 {% block title %}DS-PAL - {{ preview.name if preview else "Dataset" }}{% endblock %}
 {% block content %}
+{% if error_message is defined and error_message %}
+<section>
+    <div class="error-message">
+        <p>{{ error_message }}</p>
+    </div>
+</section>
+{% endif %}
 {% if error is defined and error %}
 <section>
     <p role="alert">Failed to load dataset: {{ error }}</p>
@@ -9,10 +16,6 @@
 {% elif preview %}
 <section>
     {% include "partials/dataset_preview.html" %}
-</section>
-
-<section id="analysis-results">
-    <!-- HTMX swaps analysis results + charts here -->
 </section>
 {% endif %}
 {% endblock %}

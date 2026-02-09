@@ -85,6 +85,48 @@ def test_build_prompt_includes_cluster_profiles(sample_analysis):
     assert "Cluster 2" in user
 
 
+def test_build_prompt_domain_grounding_instructions(sample_analysis):
+    """System prompt includes domain grounding instructions and few-shot example."""
+    system, _ = _build_prompt(sample_analysis)
+    assert "infer the domain" in system
+    assert "domain-specific vocabulary" in system
+    assert "Large-petaled flowers" in system
+    assert "High-value group" in system
+
+
+def test_build_prompt_includes_dataset_description(sample_analysis):
+    """User prompt includes description when provided."""
+    sample_analysis.dataset_description = "Monthly retail sales by region"
+    _, user = _build_prompt(sample_analysis)
+    assert "Dataset context: Monthly retail sales by region" in user
+
+
+def test_build_prompt_no_description(sample_analysis):
+    """User prompt has no 'Dataset context' line when description is empty."""
+    sample_analysis.dataset_description = ""
+    _, user = _build_prompt(sample_analysis)
+    assert "Dataset context:" not in user
+
+
+def test_build_prompt_whitespace_only_description():
+    """Whitespace-only description is treated as empty after validator strips it."""
+    analysis = AnalysisOutput(
+        id="x", title="x", dataset_source="x", dataset_id="x",
+        dataset_name="x", num_rows=10, num_columns=1, column_names=["a"],
+        algorithm="kmeans", n_clusters=1,
+        cluster_profiles=[
+            ClusterProfile(cluster_id=0, size=10, percentage=100.0, top_features=[]),
+        ],
+        cluster_labels=[0] * 10,
+        feature_names=["a"],
+        encoding_info=[],
+        dataset_description="   ",
+    )
+    assert analysis.dataset_description == ""
+    _, user = _build_prompt(analysis)
+    assert "Dataset context:" not in user
+
+
 def test_build_prompt_maps_encoded_features(sample_analysis):
     _, user = _build_prompt(sample_analysis)
     # One-hot encoded "city_NY" should appear as "city"

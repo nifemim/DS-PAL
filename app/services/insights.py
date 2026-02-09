@@ -138,7 +138,10 @@ def _build_prompt(analysis: AnalysisOutput) -> tuple[str, str]:
         "- quality: 1-2 sentences interpreting the silhouette score "
         "(below 0.25 = poor, 0.25-0.5 = fair, 0.5-0.75 = good, above 0.75 = excellent) "
         "and commenting on anomalies.\n\n"
-        "Use specific numbers. Be precise and professional."
+        "Use specific numbers. Be precise and professional.\n\n"
+        "IMPORTANT: First, infer the domain of this dataset from its name and column names. "
+        "Labels MUST use domain-specific vocabulary — not generic analytical terms. "
+        "For example, for a flower dataset: GOOD: 'Large-petaled flowers'. BAD: 'High-value group'."
     )
 
     # Build cluster summaries with full feature detail
@@ -171,6 +174,9 @@ def _build_prompt(analysis: AnalysisOutput) -> tuple[str, str]:
         f"Cluster profiles:\n" + "\n".join(cluster_lines) + "\n\n"
         f"Anomalies: {anomaly_count} ({anomaly_pct:.1f}% of data)"
     )
+
+    if analysis.dataset_description:
+        user += f"\n\nDataset context: {analysis.dataset_description}"
 
     return system, user
 

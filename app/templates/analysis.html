@@ -2,7 +2,7 @@
 {% block title %}DS-PAL - Analysis{% endblock %}
 {% block content %}
 <div id="analysis-detail"
-     hx-get="/api/saved/{{ analysis_id }}"
+     hx-get="/api/analysis/{{ analysis_id }}/detail"
      hx-trigger="load"
      hx-indicator="#analysis-spinner">
 </div>

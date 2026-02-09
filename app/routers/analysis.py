@@ -4,8 +4,10 @@ import logging
 import time
 from typing import List, Optional
 
+from urllib.parse import quote
+
 from fastapi import APIRouter, Request, Form
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.config import settings
 from app.main import templates
@@ -13,6 +15,7 @@ from app.services.dataset_loader import download_dataset, load_dataframe
 from app.services import analysis_engine
 from app.services.visualization import generate_all
 from app.services.insights import generate_insights
+from app.services.storage import get_analysis
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["analysis"])
@@ -73,28 +76,45 @@ async def run_analysis(
         # Evict old entries (TTL-based, 1 hour)
         _evict_old_pending(app)
 
+        return RedirectResponse(f"/analysis/{analysis.id}", status_code=303)
+
+    except Exception as e:
+        logger.error("Analysis failed: %s", e, exc_info=True)
+        error_msg = quote(str(e)[:200])
+        return RedirectResponse(
+            f"/dataset/{source}/{dataset_id}?name={quote(name)}&url={quote(url)}&error={error_msg}",
+            status_code=303,
+        )
+
+
+@router.get("/analysis/{analysis_id}/detail")
+async def analysis_detail(request: Request, analysis_id: str):
+    """Unified detail endpoint: checks pending first, then saved."""
+    # Check pending first
+    pending = request.app.state.pending_analyses.get(analysis_id)
+    if pending:
         return templates.TemplateResponse(
             "partials/analysis_results.html",
             {
                 "request": request,
-                "analysis": analysis,
-                "charts": charts,
+                "analysis": pending["analysis"],
+                "charts": pending["charts"],
                 "insights_enabled": settings.insights_enabled,
             },
         )
 
-    except ValueError as e:
-        logger.warning("Analysis validation error: %s", e)
+    # Fall back to saved
+    saved = await get_analysis(analysis_id)
+    if saved:
         return templates.TemplateResponse(
-            "partials/error.html",
-            {"request": request, "message": str(e)},
+            "partials/analysis_detail.html",
+            {"request": request, "analysis": saved},
         )
-    except Exception as e:
-        logger.error("Analysis failed: %s", e, exc_info=True)
-        return templates.TemplateResponse(
-            "partials/error.html",
-            {"request": request, "message": f"Analysis failed: {str(e)}"},
-        )
+
+    return templates.TemplateResponse(
+        "partials/error.html",
+        {"request": request, "message": "Analysis not found or expired."},
+    )
 
 
 @router.get("/analysis/{analysis_id}/insights")

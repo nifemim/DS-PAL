@@ -151,6 +151,7 @@ async def dataset_page(
     url: str = "",
     sheet: str = "",
     joined: str = "",
+    error: str = "",
 ):
     """Dedicated page for dataset preview and analysis configuration."""
     try:
@@ -167,7 +168,8 @@ async def dataset_page(
         preview = build_preview(df, source, dataset_id, name, url)
 
         return templates.TemplateResponse(
-            "dataset.html", {"request": request, "preview": preview}
+            "dataset.html",
+            {"request": request, "preview": preview, "error_message": error},
         )
     except Exception as e:
         logger.error("Dataset page failed for %s/%s: %s", source, dataset_id, e)

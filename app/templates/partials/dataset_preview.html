@@ -58,9 +58,7 @@
 
 <!-- Analysis config form -->
 <form class="config-form"
-      hx-post="/api/analyze"
-      hx-target="#analysis-results"
-      hx-indicator="#analysis-spinner">
+      action="/api/analyze" method="post">
 
     <input type="hidden" name="source" value="{{ preview.source }}">
     <input type="hidden" name="dataset_id" value="{{ preview.dataset_id }}">
@@ -134,7 +132,3 @@
 
     <button type="submit">Analyze!</button>
 </form>
-
-<div id="analysis-spinner" class="htmx-indicator">
-    <p aria-busy="true">Running analysis... This may take a moment for large datasets.</p>
-</div>

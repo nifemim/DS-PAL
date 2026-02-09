@@ -4,7 +4,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 # --- Search ---
@@ -108,6 +108,12 @@ class AnalysisOutput(BaseModel):
     column_stats: Dict[str, Dict[str, Any]] = {}
     feature_names: List[str] = []
     encoding_info: List[Dict[str, Any]] = []
+    dataset_description: str = Field(default="", max_length=500)
+
+    @field_validator("dataset_description")
+    @classmethod
+    def sanitize_description(cls, v: str) -> str:
+        return v.strip()
 
 
 # --- Visualization ---

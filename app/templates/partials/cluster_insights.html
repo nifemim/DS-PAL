@@ -25,10 +25,16 @@
 <p>{{ sections.quality }}</p>
 
 <div style="margin-top: 1rem;">
+    <label for="dataset_description">Dataset description (improves labels)</label>
+    <textarea name="dataset_description" id="dataset_description"
+              rows="2" maxlength="500"
+              placeholder="e.g. 'monthly sales by region'"
+    >{{ dataset_description or '' }}</textarea>
     <button class="outline secondary"
-            hx-get="/api/analysis/{{ analysis_id }}/insights"
+            hx-post="/api/analysis/{{ analysis_id }}/insights"
             hx-target="#cluster-insights"
-            hx-swap="innerHTML">
+            hx-swap="innerHTML"
+            hx-include="[name='dataset_description']">
         Regenerate
     </button>
 </div>

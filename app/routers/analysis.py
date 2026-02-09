@@ -30,6 +30,7 @@ async def run_analysis(
     columns: List[str] = Form([]),
     categorical_columns: List[str] = Form([]),
     contamination: float = Form(0.05),
+    dataset_description: str = Form(""),
 ):
     """Run ML analysis on a dataset. Returns HTMX partial with results."""
     try:
@@ -54,6 +55,9 @@ async def run_analysis(
                 contamination=contamination,
             ),
         )
+
+        # Attach user-provided description (used by LLM prompt, not ML pipeline)
+        analysis.dataset_description = dataset_description
 
         # Generate visualizations
         charts = await loop.run_in_executor(None, lambda: generate_all(analysis))
@@ -95,23 +99,34 @@ async def run_analysis(
 
 @router.get("/analysis/{analysis_id}/insights")
 async def get_insights(request: Request, analysis_id: str):
-    """Generate LLM insights for an analysis. Returns HTMX partial."""
+    """Generate LLM insights for an analysis (initial load). Returns HTMX partial."""
     entry = request.app.state.pending_analyses.get(analysis_id)
     if not entry:
         return HTMLResponse("")
 
     analysis = entry["analysis"]
-    sections = await generate_insights(analysis)
+    return await _render_insights(request, analysis_id, analysis)
 
-    if sections is None:
-        return templates.TemplateResponse(
-            "partials/cluster_insights.html",
-            {
-                "request": request,
-                "analysis_id": analysis_id,
-                "sections": None,
-            },
-        )
+
+@router.post("/analysis/{analysis_id}/insights")
+async def regenerate_insights(
+    request: Request,
+    analysis_id: str,
+    dataset_description: str = Form(""),
+):
+    """Regenerate LLM insights with an updated description. Returns HTMX partial."""
+    entry = request.app.state.pending_analyses.get(analysis_id)
+    if not entry:
+        return HTMLResponse("")
+
+    analysis = entry["analysis"]
+    analysis.dataset_description = dataset_description
+    return await _render_insights(request, analysis_id, analysis)
+
+
+async def _render_insights(request: Request, analysis_id: str, analysis):
+    """Shared logic for rendering the insights partial."""
+    sections = await generate_insights(analysis)
 
     return templates.TemplateResponse(
         "partials/cluster_insights.html",
@@ -119,6 +134,7 @@ async def get_insights(request: Request, analysis_id: str):
             "request": request,
             "analysis_id": analysis_id,
             "sections": sections,
+            "dataset_description": analysis.dataset_description,
         },
     )
 

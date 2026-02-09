@@ -127,6 +127,11 @@
     </fieldset>
     {% endif %}
 
+    <label for="dataset_description">Dataset Description (optional)</label>
+    <textarea name="dataset_description" id="dataset_description"
+              rows="2" maxlength="500"
+              placeholder="Describe your data to improve cluster labels (e.g. 'monthly sales by region')"></textarea>
+
     <button type="submit">Run Analysis</button>
 </form>
 

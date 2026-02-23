@@ -4,12 +4,15 @@
 
 :root:not([data-theme="dark"]),
 [data-theme="light"] {
-    --pico-primary: #a78bfa;
-    --pico-primary-hover: #8b5cf6;
-    --pico-primary-focus: rgba(167, 139, 250, 0.5);
-    --pico-primary-background: #a78bfa;
-    --pico-primary-hover-background: #8b5cf6;
+    --pico-primary: #1a1a1a;
+    --pico-primary-hover: #000;
+    --pico-primary-focus: rgba(0, 0, 0, 0.4);
+    --pico-primary-background: #1a1a1a;
+    --pico-primary-hover-background: #000;
     --pico-primary-inverse: #fff;
+    --pico-primary-border: #1a1a1a;
+    --pico-primary-underline: rgba(0, 0, 0, 0.5);
+    --pico-text-selection-color: rgba(0, 0, 0, 0.15);
 
     --ds-aurora-color-1: rgba(167, 139, 250, 0.55);
     --ds-aurora-color-2: rgba(249, 168, 212, 0.45);
@@ -21,12 +24,15 @@
 }
 
 [data-theme="dark"] {
-    --pico-primary: #a78bfa;
-    --pico-primary-hover: #8b5cf6;
-    --pico-primary-focus: rgba(167, 139, 250, 0.375);
-    --pico-primary-background: #a78bfa;
-    --pico-primary-hover-background: #8b5cf6;
-    --pico-primary-inverse: #fff;
+    --pico-primary: #fff;
+    --pico-primary-hover: #ccc;
+    --pico-primary-focus: rgba(255, 255, 255, 0.4);
+    --pico-primary-background: #fff;
+    --pico-primary-hover-background: #ccc;
+    --pico-primary-inverse: #1a1a1a;
+    --pico-primary-border: #fff;
+    --pico-primary-underline: rgba(255, 255, 255, 0.5);
+    --pico-text-selection-color: rgba(255, 255, 255, 0.15);
 
     --ds-aurora-color-1: rgba(167, 139, 250, 0.45);
     --ds-aurora-color-2: rgba(99, 102, 241, 0.35);
@@ -52,22 +58,35 @@ button:not(.theme-toggle):not(.tab-btn):not([aria-label="Close"]),
     background: transparent;
     border: 1px solid var(--pico-primary);
     color: var(--pico-primary);
+    transition: background 200ms, color 200ms, border-color 200ms, transform 100ms;
 }
 
-button:not(.theme-toggle):not(.tab-btn):not([aria-label="Close"]):hover,
-[role="button"]:hover {
-    background: rgba(167, 139, 250, 0.1);
-    border-color: var(--pico-primary-hover);
-    color: var(--pico-primary-hover);
+button:not(.theme-toggle):not(.tab-btn):not([aria-label="Close"]):hover:not(:disabled),
+[role="button"]:hover:not(:disabled) {
+    background: var(--pico-primary);
+    border-color: var(--pico-primary);
+    color: var(--pico-primary-inverse);
 }
 
-/* Primary buttons: subtle tinted background for hierarchy */
+button:not(.theme-toggle):not(.tab-btn):not([aria-label="Close"]):active:not(:disabled),
+[role="button"]:active:not(:disabled) {
+    transform: scale(0.98);
+}
+
+button:not(.theme-toggle):not(.tab-btn):not([aria-label="Close"]):focus-visible,
+[role="button"]:focus-visible {
+    outline: 2px solid var(--pico-primary);
+    outline-offset: 2px;
+}
+
+/* Primary buttons: solid fill by default */
 button[type="submit"],
 button.primary {
-    background: rgba(167, 139, 250, 0.1);
+    background: var(--pico-primary);
+    color: var(--pico-primary-inverse);
 }
 
-/* Secondary/outline buttons: fully hollow */
+/* Secondary/outline buttons: muted border, hollow */
 button.secondary,
 button.outline,
 [role="button"].outline,
@@ -76,13 +95,20 @@ button.outline,
     color: var(--pico-color);
 }
 
-button.secondary:hover,
-button.outline:hover,
-[role="button"].outline:hover,
-[role="button"].secondary:hover {
+button.secondary:hover:not(:disabled),
+button.outline:hover:not(:disabled),
+[role="button"].outline:hover:not(:disabled),
+[role="button"].secondary:hover:not(:disabled) {
     border-color: var(--pico-primary);
     color: var(--pico-primary);
     background: transparent;
+}
+
+/* Disabled buttons */
+button:disabled,
+[role="button"]:disabled {
+    opacity: 0.4;
+    pointer-events: none;
 }
 
 /* Articles: transparent background */
@@ -114,7 +140,11 @@ article {
     background-image: none;
 }
 
-/* Search input — subtle focus style */
+/* Search input — transparent bg, subtle focus style */
+fieldset[role="group"] input[type="search"] {
+    background: transparent;
+}
+
 fieldset[role="group"] input[type="search"]:focus {
     --pico-box-shadow: none;
     box-shadow: none;
@@ -136,14 +166,7 @@ fieldset[role="group"]:has(input[type="search"]:focus) {
     cursor: pointer;
     padding: 0.25rem;
     line-height: 1;
-}
-
-[data-theme="light"] .theme-toggle {
-    color: #000;
-}
-
-[data-theme="dark"] .theme-toggle {
-    color: #fff;
+    color: var(--pico-primary);
 }
 
 /* Dataset list (Wikipedia-style search results) */
@@ -244,8 +267,10 @@ fieldset[role="group"]:has(input[type="search"]:focus) {
 }
 
 .tab-btn.active {
-    color: var(--pico-primary);
+    background: var(--pico-primary);
+    color: var(--pico-primary-inverse);
     border-bottom-color: var(--pico-primary);
+    border-radius: 0.25rem 0.25rem 0 0;
     font-weight: 600;
 }
 
@@ -269,9 +294,10 @@ fieldset[role="group"]:has(input[type="search"]:focus) {
     transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-.chart-container:hover {
+.chart-container:hover,
+.stat-card:hover,
+.saved-card:hover {
     border-color: var(--pico-primary);
-    box-shadow: 0 0 12px rgba(167, 139, 250, 0.15);
 }
 
 .chart-container h4 {
@@ -309,10 +335,6 @@ fieldset[role="group"]:has(input[type="search"]:focus) {
     transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-.stat-card:hover {
-    border-color: var(--pico-primary);
-    box-shadow: 0 0 12px rgba(167, 139, 250, 0.15);
-}
 
 .stat-card .value {
     font-size: 1.5rem;
@@ -340,10 +362,6 @@ fieldset[role="group"]:has(input[type="search"]:focus) {
     transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-.saved-card:hover {
-    border-color: var(--pico-primary);
-    box-shadow: 0 0 12px rgba(167, 139, 250, 0.15);
-}
 
 .saved-card .actions {
     display: flex;
@@ -469,16 +487,6 @@ nav {
     z-index: 100;
     background: transparent;
     border-bottom: 1px solid var(--pico-muted-border-color);
-}
-
-@supports (backdrop-filter: blur(1px)) {
-    @media (min-width: 769px) {
-        nav {
-            background: var(--ds-glass-bg);
-            backdrop-filter: blur(var(--ds-glass-blur));
-            -webkit-backdrop-filter: blur(var(--ds-glass-blur));
-        }
-    }
 }
 
 #preview-modal[open] article {

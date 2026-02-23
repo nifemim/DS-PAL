@@ -5,7 +5,7 @@
          hx-get="/api/analysis/{{ analysis.id }}/insights"
          hx-trigger="load"
          hx-swap="innerHTML">
-    <p aria-busy="true">Generating insights...</p>
+    {% include "partials/skeleton.html" %}
 </article>
 {% endif %}
 

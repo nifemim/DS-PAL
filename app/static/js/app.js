@@ -4,9 +4,14 @@
 
 function getPlotlyThemeOverrides() {
     var isDark = document.documentElement.getAttribute("data-theme") === "dark";
-    return isDark
-        ? { paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)", font: { color: "#e0e0e0" } }
-        : { paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)", font: { color: "#333" } };
+    var gridColor = isDark ? "rgba(167,139,250,0.15)" : "rgba(167,139,250,0.12)";
+    return {
+        paper_bgcolor: "rgba(0,0,0,0)",
+        plot_bgcolor: "rgba(0,0,0,0)",
+        font: { color: isDark ? "#e0e0e0" : "#333" },
+        xaxis: { gridcolor: gridColor, linecolor: gridColor, zerolinecolor: gridColor },
+        yaxis: { gridcolor: gridColor, linecolor: gridColor, zerolinecolor: gridColor }
+    };
 }
 
 function applyTheme(theme) {

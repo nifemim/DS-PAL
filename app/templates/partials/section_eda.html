@@ -81,7 +81,7 @@
     {% for chart in charts if chart.chart_type in ["correlation_heatmap", "feature_boxplots", "anomaly_overlay", "feature_distributions"] %}
     <div class="chart-container">
         <h4>{{ chart.title }}</h4>
-        <div data-plotly='{{ chart.plotly_json }}' style="width:100%; min-height:400px;">
+        <div data-plotly='{{ chart.plotly_json }}' class="chart-plot">
             {{ chart.html|safe }}
         </div>
     </div>

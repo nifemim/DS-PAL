@@ -1,6 +1,7 @@
 /* DS-PAL custom styles */
 
-/* Primary accent color override — soft lavender purple */
+/* === Design Tokens === */
+
 :root:not([data-theme="dark"]),
 [data-theme="light"] {
     --pico-primary: #a78bfa;
@@ -9,6 +10,13 @@
     --pico-primary-background: #a78bfa;
     --pico-primary-hover-background: #8b5cf6;
     --pico-primary-inverse: #fff;
+
+    --ds-aurora-color-1: rgba(167, 139, 250, 0.3);
+    --ds-aurora-color-2: rgba(249, 168, 212, 0.25);
+    --ds-aurora-color-3: rgba(196, 181, 253, 0.2);
+    --ds-glass-bg: rgba(255, 255, 255, 0.7);
+    --ds-glass-blur: 8px;
+    --ds-font-heading: 'Space Grotesk', system-ui, -apple-system, sans-serif;
 }
 
 [data-theme="dark"] {
@@ -18,6 +26,68 @@
     --pico-primary-background: #a78bfa;
     --pico-primary-hover-background: #8b5cf6;
     --pico-primary-inverse: #fff;
+
+    --ds-aurora-color-1: rgba(167, 139, 250, 0.25);
+    --ds-aurora-color-2: rgba(99, 102, 241, 0.2);
+    --ds-aurora-color-3: rgba(6, 182, 212, 0.15);
+    --ds-glass-bg: rgba(20, 20, 30, 0.7);
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: var(--ds-font-heading);
+}
+
+/* === Skeletal UI === */
+
+/* Buttons: outlined by default */
+button:not(.theme-toggle):not(.tab-btn):not([aria-label="Close"]),
+[role="button"] {
+    background: transparent;
+    border: 1px solid var(--pico-primary);
+    color: var(--pico-primary);
+}
+
+button:not(.theme-toggle):not(.tab-btn):not([aria-label="Close"]):hover,
+[role="button"]:hover {
+    background: rgba(167, 139, 250, 0.1);
+    border-color: var(--pico-primary-hover);
+    color: var(--pico-primary-hover);
+}
+
+/* Primary buttons: subtle tinted background for hierarchy */
+button[type="submit"],
+button.primary {
+    background: rgba(167, 139, 250, 0.1);
+}
+
+/* Secondary/outline buttons: fully hollow */
+button.secondary,
+button.outline,
+[role="button"].outline,
+[role="button"].secondary {
+    border-color: var(--pico-muted-border-color);
+    color: var(--pico-color);
+}
+
+button.secondary:hover,
+button.outline:hover,
+[role="button"].outline:hover,
+[role="button"].secondary:hover {
+    border-color: var(--pico-primary);
+    color: var(--pico-primary);
+    background: transparent;
+}
+
+/* Articles: transparent background */
+article {
+    background: transparent;
+    border: 1px solid var(--pico-muted-border-color);
+}
+
+/* Chart plot container (replaces inline style="width:100%; min-height:400px;") */
+.chart-plot {
+    width: 100%;
+    min-height: 400px;
 }
 
 /* HTMX loading indicator */
@@ -188,6 +258,13 @@ fieldset[role="group"]:has(input[type="search"]:focus) {
     border: 1px solid var(--pico-muted-border-color);
     border-radius: var(--pico-border-radius);
     padding: 1rem;
+    background: transparent;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.chart-container:hover {
+    border-color: var(--pico-primary);
+    box-shadow: 0 0 12px rgba(167, 139, 250, 0.15);
 }
 
 .chart-container h4 {
@@ -202,8 +279,10 @@ fieldset[role="group"]:has(input[type="search"]:focus) {
 .cluster-profile {
     margin-bottom: 1rem;
     padding: 1rem;
+    border: 1px solid var(--pico-muted-border-color);
     border-left: 4px solid var(--pico-primary);
-    background: var(--pico-card-background-color);
+    background: transparent;
+    border-radius: var(--pico-border-radius);
 }
 
 /* Stats summary */
@@ -219,6 +298,13 @@ fieldset[role="group"]:has(input[type="search"]:focus) {
     padding: 1rem;
     border: 1px solid var(--pico-muted-border-color);
     border-radius: var(--pico-border-radius);
+    background: transparent;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.stat-card:hover {
+    border-color: var(--pico-primary);
+    box-shadow: 0 0 12px rgba(167, 139, 250, 0.15);
 }
 
 .stat-card .value {
@@ -243,6 +329,13 @@ fieldset[role="group"]:has(input[type="search"]:focus) {
     border: 1px solid var(--pico-muted-border-color);
     border-radius: var(--pico-border-radius);
     padding: 1rem;
+    background: transparent;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.saved-card:hover {
+    border-color: var(--pico-primary);
+    box-shadow: 0 0 12px rgba(167, 139, 250, 0.15);
 }
 
 .saved-card .actions {
@@ -261,8 +354,9 @@ fieldset[role="group"]:has(input[type="search"]:focus) {
 /* Error message */
 .error-message {
     padding: 1rem;
+    border: 1px solid var(--pico-del-color);
     border-left: 4px solid var(--pico-del-color);
-    background: color-mix(in srgb, var(--pico-del-color) 10%, transparent);
+    background: transparent;
     border-radius: var(--pico-border-radius);
     margin: 1rem 0;
 }
@@ -270,8 +364,9 @@ fieldset[role="group"]:has(input[type="search"]:focus) {
 /* Success message */
 .success-message {
     padding: 1rem;
+    border: 1px solid var(--pico-ins-color);
     border-left: 4px solid var(--pico-ins-color);
-    background: color-mix(in srgb, var(--pico-ins-color) 10%, transparent);
+    background: transparent;
     border-radius: var(--pico-border-radius);
     margin: 1rem 0;
 }
@@ -282,8 +377,9 @@ fieldset[role="group"]:has(input[type="search"]:focus) {
     font-size: 0.75rem;
     padding: 0.15rem 0.5rem;
     border-radius: 1rem;
-    background: var(--pico-primary-background);
-    color: var(--pico-primary-inverse);
+    background: transparent;
+    color: var(--pico-primary);
+    border: 1px solid var(--pico-primary);
 }
 
 /* Modal styles */
@@ -316,6 +412,74 @@ fieldset[role="group"]:has(input[type="search"]:focus) {
     overflow-y: auto;
 }
 
+/* === Aurora === */
+
+body::before {
+    content: "";
+    position: fixed;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    z-index: -1;
+    pointer-events: none;
+    background:
+        radial-gradient(ellipse at 30% 50%, var(--ds-aurora-color-1), transparent 50%),
+        radial-gradient(ellipse at 70% 20%, var(--ds-aurora-color-2), transparent 45%),
+        radial-gradient(ellipse at 50% 80%, var(--ds-aurora-color-3), transparent 50%);
+    will-change: transform;
+    contain: strict;
+}
+
+[data-page="home"]::before {
+    animation: aurora-drift 20s ease-in-out infinite alternate;
+}
+
+body:not([data-page="home"])::before {
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    background: radial-gradient(
+        ellipse at 80% 10%,
+        var(--ds-aurora-color-1),
+        transparent 50%
+    );
+    opacity: 0.4;
+}
+
+@keyframes aurora-drift {
+    0%   { transform: translate(0, 0) scale(1); }
+    50%  { transform: translate(-5%, 3%) scale(1.05); }
+    100% { transform: translate(3%, -2%) scale(1); }
+}
+
+/* === Frosted Glass === */
+
+nav {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: color-mix(in srgb, var(--pico-background-color) 92%, transparent);
+    contain: layout style paint;
+}
+
+@supports (backdrop-filter: blur(1px)) {
+    @media (min-width: 769px) {
+        nav {
+            background: var(--ds-glass-bg);
+            backdrop-filter: blur(var(--ds-glass-blur));
+            -webkit-backdrop-filter: blur(var(--ds-glass-blur));
+        }
+    }
+}
+
+#preview-modal[open] article {
+    backdrop-filter: blur(var(--ds-glass-blur));
+    -webkit-backdrop-filter: blur(var(--ds-glass-blur));
+    background: var(--ds-glass-bg);
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
     .dataset-item-meta {
@@ -336,5 +500,52 @@ fieldset[role="group"]:has(input[type="search"]:focus) {
 @media (max-width: 480px) {
     .stats-grid {
         grid-template-columns: 1fr;
+    }
+}
+
+/* === Skeleton Loading === */
+
+.skeleton-line {
+    background: var(--pico-muted-border-color);
+    border-radius: var(--pico-border-radius);
+    animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes skeleton-pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.4; }
+}
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* === Reduced Motion === */
+
+@media (prefers-reduced-motion: reduce) {
+    body::before,
+    [data-page="home"]::before {
+        animation: none;
+    }
+
+    .skeleton-line {
+        animation: none;
+    }
+
+    nav {
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+    }
+
+    *, *::before, *::after {
+        transition-duration: 0s !important;
     }
 }

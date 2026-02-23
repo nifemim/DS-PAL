@@ -72,20 +72,21 @@ window.addEventListener("storage", function (e) {
     });
 })();
 
-// --- Upload: paperclip icon triggers file picker, auto-submit on select ---
+// --- Upload: "upload" link triggers file picker, auto-submit on select ---
 (function () {
     var fileInput = document.getElementById("upload-file");
     var pickBtn = document.getElementById("upload-pick-btn");
     var form = document.getElementById("upload-form");
     if (!fileInput || !pickBtn || !form) return;
 
-    pickBtn.addEventListener("click", function () {
+    pickBtn.addEventListener("click", function (e) {
+        e.preventDefault();
         fileInput.click();
     });
 
     fileInput.addEventListener("change", function () {
         if (fileInput.files.length) {
-            pickBtn.setAttribute("aria-busy", "true");
+            pickBtn.textContent = "uploading\u2026";
             form.submit();
         }
     });

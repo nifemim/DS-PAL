@@ -44,6 +44,20 @@
     --ds-font-body: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
+/* Hyperlinks: solid fill like a button on hover/active */
+a {
+    color: var(--pico-muted-color);
+    text-decoration: none;
+    transition: background 200ms, color 200ms;
+    padding: 0.1em 0.3em;
+}
+
+a:hover,
+a:active {
+    background: var(--pico-primary);
+    color: var(--pico-primary-inverse);
+}
+
 h1, h2, h3, h4, h5, h6 {
     font-family: var(--ds-font-heading);
 }
@@ -148,9 +162,19 @@ article {
     display: none !important;
 }
 
-/* Search input — transparent bg, subtle focus style */
+/* Search bar — primary-colored border, sharp edges, no style change on focus */
+fieldset[role="group"] {
+    border-color: var(--pico-primary);
+    border-radius: 0;
+}
+
+fieldset[role="group"] > * {
+    border-radius: 0 !important;
+}
+
 fieldset[role="group"] input[type="search"] {
     background: transparent;
+    border-color: var(--pico-primary);
 }
 
 fieldset[role="group"] input[type="search"]:focus {
@@ -164,27 +188,26 @@ fieldset[role="group"]:has(input[type="search"]:focus) {
     --pico-group-box-shadow-focus-with-button: 0 0 0 transparent;
     box-shadow: none;
     outline: none;
+    border-color: var(--pico-primary);
 }
 
-/* Upload icon button (inside search bar, right side) */
-.upload-icon-btn {
-    background: transparent !important;
-    border: none !important;
-    border-left: 1px solid var(--pico-muted-border-color) !important;
-    border-right: 1px solid var(--pico-muted-border-color) !important;
-    border-radius: 0 !important;
-    font-size: 1.1rem;
-    padding: 0 0.75rem;
-    cursor: pointer;
+fieldset[role="group"] button {
+    border: 1px solid var(--pico-primary) !important;
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+/* Upload link in hint text */
+.upload-link {
     color: var(--pico-muted-color);
-    line-height: 1;
+    text-decoration: underline;
+    cursor: pointer;
     transition: color 200ms;
-    min-width: auto;
 }
 
-.upload-icon-btn:hover {
-    color: var(--pico-primary);
-    background: transparent !important;
+.upload-link:hover,
+.upload-link:active {
+    color: var(--pico-primary-inverse);
 }
 
 /* Theme toggle button */
@@ -193,9 +216,22 @@ fieldset[role="group"]:has(input[type="search"]:focus) {
     border: none;
     font-size: 1.25rem;
     cursor: pointer;
-    padding: 0.25rem;
+    padding: 0.25rem 0.5rem;
     line-height: 1;
     color: var(--pico-primary);
+    transition: background 200ms, color 200ms;
+}
+
+.theme-toggle:hover {
+    background: var(--pico-primary);
+    color: var(--pico-primary-inverse);
+}
+
+.theme-toggle:focus,
+.theme-toggle:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+    border: none !important;
 }
 
 /* Dataset list (Wikipedia-style search results) */
@@ -225,12 +261,7 @@ fieldset[role="group"]:has(input[type="search"]:focus) {
 
 .dataset-item-header h4 a {
     color: var(--pico-primary);
-    text-decoration: none;
     cursor: pointer;
-}
-
-.dataset-item-header h4 a:hover {
-    text-decoration: underline;
 }
 
 .dataset-item-description {
@@ -516,6 +547,10 @@ nav {
     z-index: 100;
     background: transparent;
     border-bottom: 1px solid var(--pico-muted-border-color);
+}
+
+nav a {
+    color: var(--pico-primary);
 }
 
 #preview-modal[open] article {

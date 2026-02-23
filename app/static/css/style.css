@@ -117,10 +117,12 @@ article {
     border: 1px solid var(--pico-muted-border-color);
 }
 
-/* Chart plot container (replaces inline style="width:100%; min-height:400px;") */
+/* Chart plot container */
 .chart-plot {
     width: 100%;
-    min-height: 400px;
+    min-height: 300px;
+    max-height: 450px;
+    overflow: hidden;
 }
 
 /* HTMX loading indicator */
@@ -135,9 +137,13 @@ article {
     opacity: 1;
 }
 
-/* Ensure aria-busy elements inside hidden indicators don't show spinners */
-.htmx-indicator [aria-busy="true"] {
-    background-image: none;
+/* Disable Pico's built-in aria-busy spinner — use skeleton UI instead */
+[aria-busy="true"]:not(button) {
+    background-image: none !important;
+}
+
+[aria-busy="true"]:not(button)::before {
+    display: none !important;
 }
 
 /* Search input — transparent bg, subtle focus style */
@@ -158,16 +164,20 @@ fieldset[role="group"]:has(input[type="search"]:focus) {
     outline: none;
 }
 
-/* Upload icon button (inside search bar) */
+/* Upload icon button (inside search bar, right side) */
 .upload-icon-btn {
     background: transparent !important;
     border: none !important;
+    border-left: 1px solid var(--pico-muted-border-color) !important;
+    border-right: 1px solid var(--pico-muted-border-color) !important;
+    border-radius: 0 !important;
     font-size: 1.1rem;
-    padding: 0 0.5rem;
+    padding: 0 0.75rem;
     cursor: pointer;
     color: var(--pico-muted-color);
     line-height: 1;
     transition: color 200ms;
+    min-width: auto;
 }
 
 .upload-icon-btn:hover {

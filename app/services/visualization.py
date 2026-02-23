@@ -53,6 +53,7 @@ def scatter_2d(analysis: AnalysisOutput) -> ChartData:
         title="Cluster Scatter (PCA 2D)",
         xaxis_title="PC1",
         yaxis_title="PC2",
+        height=400,
     )
     return _to_chart(fig, "scatter_2d", "2D Cluster Scatter (PCA)")
 
@@ -78,6 +79,7 @@ def scatter_3d(analysis: AnalysisOutput) -> ChartData:
     fig.update_layout(
         title="Cluster Scatter (PCA 3D)",
         scene=dict(xaxis_title="PC1", yaxis_title="PC2", zaxis_title="PC3"),
+        height=400,
     )
     return _to_chart(fig, "scatter_3d", "3D Cluster Scatter (PCA)")
 
@@ -181,6 +183,7 @@ def silhouette_plot(analysis: AnalysisOutput) -> ChartData:
         title=f"Clustering Quality — {sil_text}",
         xaxis_title="Cluster",
         yaxis_title="Size",
+        height=400,
     )
     return _to_chart(fig, "silhouette", "Clustering Quality")
 
@@ -210,7 +213,7 @@ def parallel_coordinates(analysis: AnalysisOutput) -> ChartData:
         ),
         dimensions=dimensions,
     ))
-    fig.update_layout(title="Parallel Coordinates (Cluster Centroids)")
+    fig.update_layout(title="Parallel Coordinates (Cluster Centroids)", height=400)
     return _to_chart(fig, "parallel_coordinates", "Parallel Coordinates")
 
 
@@ -243,6 +246,7 @@ def anomaly_overlay(analysis: AnalysisOutput) -> ChartData:
         title=f"Anomaly Detection ({n_anom} anomalies found)",
         xaxis_title="PC1",
         yaxis_title="PC2",
+        height=400,
     )
     return _to_chart(fig, "anomaly_overlay", "Anomaly Detection Overlay")
 
@@ -274,7 +278,7 @@ def feature_distributions(analysis: AnalysisOutput) -> ChartData:
             row=r + 1, col=c + 1,
         )
 
-    fig.update_layout(title="Feature Distributions", height=300 * rows)
+    fig.update_layout(title="Feature Distributions", height=min(250 * rows, 900))
     return _to_chart(fig, "feature_distributions", "Feature Distributions")
 
 

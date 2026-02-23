@@ -4,7 +4,7 @@
 
 function getPlotlyThemeOverrides() {
     var isDark = document.documentElement.getAttribute("data-theme") === "dark";
-    var gridColor = isDark ? "rgba(167,139,250,0.15)" : "rgba(167,139,250,0.12)";
+    var gridColor = isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.08)";
     return {
         paper_bgcolor: "rgba(0,0,0,0)",
         plot_bgcolor: "rgba(0,0,0,0)",

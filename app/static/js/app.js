@@ -72,30 +72,22 @@ window.addEventListener("storage", function (e) {
     });
 })();
 
-// --- Upload button enable/disable + spinner ---
+// --- Upload: paperclip icon triggers file picker, auto-submit on select ---
 (function () {
     var fileInput = document.getElementById("upload-file");
-    var uploadBtn = document.getElementById("upload-btn");
     var pickBtn = document.getElementById("upload-pick-btn");
-    var filenameSpan = document.getElementById("upload-filename");
     var form = document.getElementById("upload-form");
-    if (!fileInput || !uploadBtn || !form) return;
+    if (!fileInput || !pickBtn || !form) return;
+
+    pickBtn.addEventListener("click", function () {
+        fileInput.click();
+    });
 
     fileInput.addEventListener("change", function () {
         if (fileInput.files.length) {
-            if (filenameSpan) filenameSpan.textContent = fileInput.files[0].name;
-            uploadBtn.style.display = "";
-        } else {
-            if (filenameSpan) filenameSpan.textContent = "";
-            uploadBtn.style.display = "none";
+            pickBtn.setAttribute("aria-busy", "true");
+            form.submit();
         }
-    });
-
-    form.addEventListener("submit", function () {
-        uploadBtn.disabled = true;
-        uploadBtn.setAttribute("aria-busy", "true");
-        uploadBtn.textContent = "Uploading\u2026";
-        if (pickBtn) pickBtn.disabled = true;
     });
 })();
 

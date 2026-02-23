@@ -158,6 +158,23 @@ fieldset[role="group"]:has(input[type="search"]:focus) {
     outline: none;
 }
 
+/* Upload icon button (inside search bar) */
+.upload-icon-btn {
+    background: transparent !important;
+    border: none !important;
+    font-size: 1.1rem;
+    padding: 0 0.5rem;
+    cursor: pointer;
+    color: var(--pico-muted-color);
+    line-height: 1;
+    transition: color 200ms;
+}
+
+.upload-icon-btn:hover {
+    color: var(--pico-primary);
+    background: transparent !important;
+}
+
 /* Theme toggle button */
 .theme-toggle {
     background: none;

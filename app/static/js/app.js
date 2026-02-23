@@ -76,17 +76,26 @@ window.addEventListener("storage", function (e) {
 (function () {
     var fileInput = document.getElementById("upload-file");
     var uploadBtn = document.getElementById("upload-btn");
+    var pickBtn = document.getElementById("upload-pick-btn");
+    var filenameSpan = document.getElementById("upload-filename");
     var form = document.getElementById("upload-form");
     if (!fileInput || !uploadBtn || !form) return;
 
     fileInput.addEventListener("change", function () {
-        uploadBtn.disabled = !fileInput.files.length;
+        if (fileInput.files.length) {
+            if (filenameSpan) filenameSpan.textContent = fileInput.files[0].name;
+            uploadBtn.style.display = "";
+        } else {
+            if (filenameSpan) filenameSpan.textContent = "";
+            uploadBtn.style.display = "none";
+        }
     });
 
     form.addEventListener("submit", function () {
         uploadBtn.disabled = true;
         uploadBtn.setAttribute("aria-busy", "true");
         uploadBtn.textContent = "Uploading\u2026";
+        if (pickBtn) pickBtn.disabled = true;
     });
 })();
 

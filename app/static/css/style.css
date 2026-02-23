@@ -11,12 +11,13 @@
     --pico-primary-hover-background: #8b5cf6;
     --pico-primary-inverse: #fff;
 
-    --ds-aurora-color-1: rgba(167, 139, 250, 0.3);
-    --ds-aurora-color-2: rgba(249, 168, 212, 0.25);
-    --ds-aurora-color-3: rgba(196, 181, 253, 0.2);
-    --ds-glass-bg: rgba(255, 255, 255, 0.7);
+    --ds-aurora-color-1: rgba(167, 139, 250, 0.55);
+    --ds-aurora-color-2: rgba(249, 168, 212, 0.45);
+    --ds-aurora-color-3: rgba(196, 181, 253, 0.4);
+    --ds-glass-bg: rgba(255, 255, 255, 0.35);
     --ds-glass-blur: 8px;
     --ds-font-heading: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+    --ds-font-body: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
 [data-theme="dark"] {
@@ -27,14 +28,20 @@
     --pico-primary-hover-background: #8b5cf6;
     --pico-primary-inverse: #fff;
 
-    --ds-aurora-color-1: rgba(167, 139, 250, 0.25);
-    --ds-aurora-color-2: rgba(99, 102, 241, 0.2);
-    --ds-aurora-color-3: rgba(6, 182, 212, 0.15);
-    --ds-glass-bg: rgba(20, 20, 30, 0.7);
+    --ds-aurora-color-1: rgba(167, 139, 250, 0.45);
+    --ds-aurora-color-2: rgba(99, 102, 241, 0.35);
+    --ds-aurora-color-3: rgba(6, 182, 212, 0.3);
+    --ds-glass-bg: rgba(20, 20, 30, 0.35);
+    --ds-font-heading: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+    --ds-font-body: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
 h1, h2, h3, h4, h5, h6 {
     font-family: var(--ds-font-heading);
+}
+
+body {
+    font-family: var(--ds-font-body);
 }
 
 /* === Skeletal UI === */
@@ -445,7 +452,7 @@ body:not([data-page="home"])::before {
         var(--ds-aurora-color-1),
         transparent 50%
     );
-    opacity: 0.4;
+    opacity: 0.7;
 }
 
 @keyframes aurora-drift {
@@ -460,8 +467,8 @@ nav {
     position: sticky;
     top: 0;
     z-index: 100;
-    background: color-mix(in srgb, var(--pico-background-color) 92%, transparent);
-    contain: layout style paint;
+    background: transparent;
+    border-bottom: 1px solid var(--pico-muted-border-color);
 }
 
 @supports (backdrop-filter: blur(1px)) {

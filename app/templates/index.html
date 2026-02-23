@@ -25,21 +25,25 @@
 <div class="error-message" role="alert">{{ upload_error }}</div>
 {% endif %}
 
-<section>
-    <p style="text-align: center; color: var(--pico-muted-color);">&mdash; or upload your own &mdash;</p>
+<section style="text-align: center;">
+    <p style="color: var(--pico-muted-color);">&mdash; or &mdash;</p>
     <form id="upload-form"
           action="/api/dataset/upload"
           method="post"
           enctype="multipart/form-data">
-        <fieldset role="group">
-            <input type="file"
-                   id="upload-file"
-                   name="file"
-                   accept=".csv,.json,.xlsx,.xls,.parquet"
-                   aria-label="Upload a dataset file"
-                   required>
-            <button type="submit" id="upload-btn" disabled>Upload &amp; Preview</button>
-        </fieldset>
+        <input type="file"
+               id="upload-file"
+               name="file"
+               accept=".csv,.json,.xlsx,.xls,.parquet"
+               style="display: none;"
+               aria-label="Upload a dataset file">
+        <button type="button" id="upload-pick-btn" class="secondary"
+                onclick="document.getElementById('upload-file').click()">
+            Upload a file
+        </button>
+        <span id="upload-filename" style="margin-left: 0.5rem; color: var(--pico-muted-color); font-size: 0.85rem;"></span>
+        <button type="submit" id="upload-btn" style="display: none;">Upload &amp; Analyze</button>
+        <br>
         <small style="color: var(--pico-muted-color);">CSV, Excel, JSON, or Parquet &middot; max {{ max_file_size_mb }} MB</small>
     </form>
 </section>

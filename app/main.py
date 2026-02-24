@@ -3,7 +3,8 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+import httpx
+from fastapi import FastAPI, Request, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -36,8 +37,18 @@ async def lifespan(app: FastAPI):
     # Pending analyses store (in-memory, keyed by UUID)
     app.state.pending_analyses = {}
 
+    # Chat conversation store (in-memory, keyed by session_id)
+    app.state.conversations = {}
+
+    # Shared HTTP client for outbound API calls (reuses TCP connections)
+    app.state.http_client = httpx.AsyncClient(
+        timeout=httpx.Timeout(connect=10.0, read=35.0, write=10.0, pool=5.0),
+        limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
+    )
+
     yield
 
+    await app.state.http_client.aclose()
     logger.info("Shutting down DS-PAL...")
 
 
@@ -48,14 +59,23 @@ def create_app() -> FastAPI:
     # Mount static files
     app.mount("/static", StaticFiles(directory=APP_DIR / "static"), name="static")
 
+    # Security headers
+    @app.middleware("http")
+    async def add_security_headers(request: Request, call_next) -> Response:
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        return response
+
     # Register routers
-    from app.routers import pages, search, analysis, saved, upload
+    from app.routers import pages, search, analysis, saved, upload, chat
 
     app.include_router(pages.router)
     app.include_router(search.router, prefix="/api")
     app.include_router(analysis.router, prefix="/api")
     app.include_router(saved.router, prefix="/api")
     app.include_router(upload.router, prefix="/api")
+    app.include_router(chat.router, prefix="/api")
 
     return app
 

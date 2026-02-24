@@ -18,6 +18,7 @@ async def clean_db():
     # Clean up after test
     db = await get_db()
     try:
+        await db.execute("DELETE FROM chat_messages")
         await db.execute("DELETE FROM tickets")
         await db.execute("DELETE FROM visualizations")
         await db.execute("DELETE FROM analyses")

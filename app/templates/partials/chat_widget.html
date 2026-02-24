@@ -1,0 +1,36 @@
+<button id="chat-toggle-btn" class="chat-toggle-btn"
+        aria-expanded="false" aria-controls="chat-widget"
+        aria-label="Open chat assistant">Chat</button>
+
+<aside id="chat-widget" class="chat-widget" aria-hidden="true"
+       role="complementary" aria-label="PAL Assistant">
+  <div class="chat-header">
+    <span class="chat-header__title">PAL</span>
+    <button class="chat-header__close" id="chat-close-btn"
+            aria-label="Close chat">&times;</button>
+  </div>
+
+  <div id="chat-log" class="chat-log" role="log"
+       aria-live="polite" aria-relevant="additions" aria-atomic="false">
+    <div class="chat-msg chat-msg--assistant">
+      <span class="chat-msg__text">Hi, I'm PAL. I can help you navigate DS-PAL,
+      answer data science questions, or collect your feedback.
+      Type "feedback" anytime to share your thoughts.</span>
+    </div>
+  </div>
+
+  <form id="chat-form" class="chat-input-area"
+        hx-post="/api/chat/message"
+        hx-target="#chat-log"
+        hx-swap="beforeend scroll:bottom"
+        hx-disabled-elt="find button[type='submit']"
+        hx-indicator="#chat-spinner">
+    <input type="hidden" name="session_id" id="chat-session-id" value="">
+    <label for="chat-input" class="sr-only">Message</label>
+    <input id="chat-input" type="text" name="message"
+           placeholder="Ask PAL..." autocomplete="off" required
+           maxlength="500" aria-label="Chat message">
+    <button type="submit">Send</button>
+    <span id="chat-spinner" class="htmx-indicator" aria-hidden="true">...</span>
+  </form>
+</aside>

@@ -170,16 +170,32 @@ document.body.addEventListener("htmx:afterSwap", function (event) {
     });
 });
 
-// Handle HTMX response errors
+// Handle HTMX response errors (scoped for chat)
 document.body.addEventListener("htmx:responseError", function (event) {
     var target = event.detail.target;
+    if (target.id === "chat-log") {
+        var err = document.createElement("div");
+        err.className = "chat-msg chat-msg--assistant";
+        err.setAttribute("role", "alert");
+        err.innerHTML = '<span class="chat-msg__text">Something went wrong. Please try again.</span>';
+        target.appendChild(err);
+        return;
+    }
     target.innerHTML =
         '<div class="error-message"><p>An error occurred. Please try again.</p></div>';
 });
 
-// Handle HTMX send errors (network failures)
+// Handle HTMX send errors (network failures, scoped for chat)
 document.body.addEventListener("htmx:sendError", function (event) {
     var target = event.detail.target;
+    if (target.id === "chat-log") {
+        var err = document.createElement("div");
+        err.className = "chat-msg chat-msg--assistant";
+        err.setAttribute("role", "alert");
+        err.innerHTML = '<span class="chat-msg__text">Network error. Please check your connection.</span>';
+        target.appendChild(err);
+        return;
+    }
     target.innerHTML =
         '<div class="error-message"><p>Network error. Please check your connection and try again.</p></div>';
 });
@@ -187,6 +203,85 @@ document.body.addEventListener("htmx:sendError", function (event) {
 // Handle HTMX timeout
 document.body.addEventListener("htmx:timeout", function (event) {
     var target = event.detail.target;
+    if (target.id === "chat-log") {
+        var err = document.createElement("div");
+        err.className = "chat-msg chat-msg--assistant";
+        err.setAttribute("role", "alert");
+        err.innerHTML = '<span class="chat-msg__text">Request timed out. Please try again.</span>';
+        target.appendChild(err);
+        return;
+    }
     target.innerHTML =
         '<div class="error-message"><p>Request timed out. The dataset may be too large or the server is busy.</p></div>';
 });
+
+// --- PAL Chat Widget ---
+
+(function () {
+    var toggleBtn = document.getElementById("chat-toggle-btn");
+    var widget = document.getElementById("chat-widget");
+    var closeBtn = document.getElementById("chat-close-btn");
+    var chatInput = document.getElementById("chat-input");
+    var sessionInput = document.getElementById("chat-session-id");
+    if (!toggleBtn || !widget) return;
+
+    // Session ID: persist in sessionStorage, fallback to window global
+    function getOrCreateSessionId() {
+        try {
+            var id = sessionStorage.getItem("pal-session-id");
+            if (!id) {
+                id = crypto.randomUUID();
+                sessionStorage.setItem("pal-session-id", id);
+            }
+            return id;
+        } catch (e) {
+            if (!window._palSessionId) window._palSessionId = crypto.randomUUID();
+            return window._palSessionId;
+        }
+    }
+
+    if (sessionInput) {
+        sessionInput.value = getOrCreateSessionId();
+    }
+
+    function openChat() {
+        widget.classList.add("chat-widget--open");
+        widget.setAttribute("aria-hidden", "false");
+        toggleBtn.setAttribute("aria-expanded", "true");
+        toggleBtn.classList.add("chat-toggle-btn--hidden");
+        document.body.classList.add("chat-open");
+        if (chatInput) chatInput.focus();
+    }
+
+    function closeChat() {
+        widget.classList.remove("chat-widget--open");
+        widget.setAttribute("aria-hidden", "true");
+        toggleBtn.setAttribute("aria-expanded", "false");
+        toggleBtn.classList.remove("chat-toggle-btn--hidden");
+        document.body.classList.remove("chat-open");
+        toggleBtn.focus();
+    }
+
+    toggleBtn.addEventListener("click", function () {
+        var isOpen = widget.classList.contains("chat-widget--open");
+        if (isOpen) closeChat(); else openChat();
+    });
+
+    if (closeBtn) {
+        closeBtn.addEventListener("click", closeChat);
+    }
+
+    // Escape to close
+    document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape" && widget.classList.contains("chat-widget--open")) {
+            closeChat();
+        }
+    });
+
+    // Clear input after successful send
+    document.body.addEventListener("htmx:afterSwap", function (event) {
+        if (event.detail.target.id === "chat-log") {
+            if (chatInput) chatInput.value = "";
+        }
+    });
+})();

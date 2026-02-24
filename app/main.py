@@ -1,4 +1,5 @@
 """FastAPI application factory."""
+import hashlib
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -18,6 +19,19 @@ APP_DIR = Path(__file__).parent
 # Templates - importable by routers
 templates = Jinja2Templates(directory=APP_DIR / "templates")
 templates.env.globals["debug"] = settings.app_debug
+
+# Cache-busting: hash static files at import time so browsers fetch fresh assets on deploy
+def _asset_hash(*paths: Path) -> str:
+    h = hashlib.md5()
+    for p in paths:
+        if p.exists():
+            h.update(p.read_bytes())
+    return h.hexdigest()[:8]
+
+templates.env.globals["asset_v"] = _asset_hash(
+    APP_DIR / "static" / "css" / "style.css",
+    APP_DIR / "static" / "js" / "app.js",
+)
 
 
 @asynccontextmanager

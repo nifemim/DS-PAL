@@ -17,7 +17,7 @@
     <!-- Pico CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2.0.6/css/pico.min.css">
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/style.css?v={{ asset_v }}">
     <!-- Display font -->
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap">
     <!-- Plotly -->
@@ -48,6 +48,6 @@
     {% include "partials/chat_widget.html" %}
 
     <!-- Custom JS -->
-    <script src="/static/js/app.js"></script>
+    <script src="/static/js/app.js?v={{ asset_v }}"></script>
 </body>
 </html>

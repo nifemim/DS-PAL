@@ -264,6 +264,11 @@ fieldset[role="group"] button {
     cursor: pointer;
 }
 
+.dataset-item-header h4 a:hover,
+.dataset-item-header h4 a:active {
+    color: var(--pico-primary-inverse);
+}
+
 .dataset-item-description {
     margin: 0.25rem 0;
     font-size: 0.9rem;

@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Feedback — DS-PAL{% endblock %}
+
+{% block content %}
+<h2>Collected Feedback</h2>
+
+{% if not sessions %}
+<p>No feedback collected yet. Users can type "feedback" in the chat widget to share their thoughts.</p>
+{% endif %}
+
+{% for session_id, messages in sessions.items() %}
+<article>
+  <header>
+    <small>Session {{ session_id[:8] }}… &mdash; {{ messages[0].created_at }}</small>
+  </header>
+  {% for msg in messages %}
+  <p><strong>{{ msg.role }}:</strong> {{ msg.content }}</p>
+  {% endfor %}
+</article>
+{% endfor %}
+{% endblock %}

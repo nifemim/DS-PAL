@@ -3,10 +3,11 @@ import json
 import logging
 from urllib.parse import quote
 
-from fastapi import APIRouter, Form, Request
+from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 
 from app.config import settings
+from app.database import get_db
 from app.main import templates
 from app.services.dataset_loader import (
     build_preview,
@@ -38,6 +39,37 @@ async def saved_page(request: Request):
 async def analysis_page(request: Request, analysis_id: str):
     return templates.TemplateResponse(
         "analysis.html", {"request": request, "analysis_id": analysis_id}
+    )
+
+
+@router.get("/feedback")
+async def feedback_page(request: Request):
+    """View collected chat feedback (debug mode only)."""
+    if not settings.app_debug:
+        raise HTTPException(status_code=404)
+    db = await get_db()
+    try:
+        # Get all messages from sessions that contain at least one feedback message
+        rows = await db.execute_fetchall(
+            "SELECT session_id, role, content, created_at "
+            "FROM chat_messages "
+            "WHERE session_id IN ("
+            "  SELECT DISTINCT session_id FROM chat_messages WHERE is_feedback = 1"
+            ") ORDER BY created_at"
+        )
+    finally:
+        await db.close()
+
+    # Group messages by session
+    sessions: dict[str, list] = {}
+    for session_id, role, content, created_at in rows:
+        sessions.setdefault(session_id, []).append(
+            {"role": role, "content": content, "created_at": created_at}
+        )
+
+    return templates.TemplateResponse(
+        "feedback.html",
+        {"request": request, "sessions": sessions},
     )
 
 

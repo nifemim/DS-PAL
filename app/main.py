@@ -17,6 +17,7 @@ APP_DIR = Path(__file__).parent
 
 # Templates - importable by routers
 templates = Jinja2Templates(directory=APP_DIR / "templates")
+templates.env.globals["debug"] = settings.app_debug
 
 
 @asynccontextmanager

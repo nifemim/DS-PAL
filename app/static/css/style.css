@@ -21,7 +21,7 @@
     --ds-glass-bg: rgba(255, 255, 255, 0.35);
     --ds-glass-blur: 8px;
     --ds-font-heading: 'Space Grotesk', system-ui, -apple-system, sans-serif;
-    --ds-font-body: 'Inter', system-ui, -apple-system, sans-serif;
+    --ds-font-body: 'Space Mono', monospace, system-ui, sans-serif;
 }
 
 [data-theme="dark"] {
@@ -41,7 +41,7 @@
     --ds-aurora-color-3: rgba(6, 182, 212, 0.3);
     --ds-glass-bg: rgba(20, 20, 30, 0.35);
     --ds-font-heading: 'Space Grotesk', system-ui, -apple-system, sans-serif;
-    --ds-font-body: 'Inter', system-ui, -apple-system, sans-serif;
+    --ds-font-body: 'Space Mono', monospace, system-ui, sans-serif;
 }
 
 /* Hyperlinks: solid fill like a button on hover/active */

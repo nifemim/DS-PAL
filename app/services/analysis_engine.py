@@ -191,11 +191,11 @@ def preprocess(
     else:
         numeric_df = df.select_dtypes(include=["number"])
 
-    # Drop columns with >50% NaN
-    threshold = len(numeric_df) * 0.5
+    # Drop columns with >90% NaN
+    threshold = len(numeric_df) * 0.1
     for col in numeric_df.columns:
         if numeric_df[col].count() < threshold:
-            dropped_columns.append({"column": col, "reason": "Over 50% missing values"})
+            dropped_columns.append({"column": col, "reason": "Over 90% missing values"})
     numeric_df = numeric_df.dropna(axis=1, thresh=int(threshold))
 
     # Drop rows that are entirely NaN, then impute remaining NaNs with median

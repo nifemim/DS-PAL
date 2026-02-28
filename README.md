@@ -1,12 +1,14 @@
 # DS-PAL — Dataset Pre-processing, Analysis, and Learning
 
-A dataset analysis platform with clustering, anomaly detection, and interactive visualizations. Includes a CLI-based ticket manager for tracking fix-later items.
+A dataset analysis platform with clustering, anomaly detection, interactive visualizations, and an AI assistant. Includes a CLI-based ticket manager for tracking fix-later items.
 
 ## Features
 
 **Web Application**
-- Search datasets from Kaggle, HuggingFace, and Data.gov
+- Search datasets from Kaggle, HuggingFace, UCI ML Repository, and Data.gov
+- Upload datasets: CSV, JSON, Excel (.xlsx), Parquet
 - Preview dataset structure with column classification and cardinality info
+- Multi-sheet Excel support with join configuration
 - Automatic categorical column encoding (one-hot for low cardinality, label encoding for high cardinality)
 - Toggle categorical columns on/off with encoding method badges in the UI
 - Run clustering analysis (K-Means, DBSCAN, Hierarchical) on numeric and categorical data
@@ -15,6 +17,14 @@ A dataset analysis platform with clustering, anomaly detection, and interactive 
 - Transformation notices showing which columns were encoded and how
 - Save and manage analysis results with encoding metadata
 - Dark mode with automatic OS preference detection and manual toggle
+
+**PAL Chat Assistant**
+- AI-powered help and feedback collection widget
+- Powered by HuggingFace Inference API
+- Answers DS-PAL usage questions and general data science questions
+- Built-in feedback collection mode — type "feedback" to share thoughts
+- Conversation history with session persistence
+- Debug-only feedback review page at `/feedback`
 
 **CLI Ticket Manager**
 - Track bugs and tasks with priorities and tags
@@ -88,7 +98,7 @@ Environment variables (see `.env.example`):
 |----------|-------------|---------|
 | `KAGGLE_USERNAME` | Kaggle API username | - |
 | `KAGGLE_KEY` | Kaggle API key | - |
-| `HUGGINGFACE_TOKEN` | HuggingFace API token | - |
+| `HUGGINGFACE_TOKEN` | HuggingFace API token (also powers PAL chat) | - |
 | `APP_HOST` | Server host | `0.0.0.0` |
 | `APP_PORT` | Server port | `8000` |
 | `APP_DEBUG` | Enable debug mode | `true` |
@@ -119,7 +129,7 @@ app/
 │   └── _formatter.py     # output formatting
 ├── models/
 │   └── schemas.py        # Pydantic models
-├── routers/              # FastAPI routes
+├── routers/              # FastAPI routes (pages, search, analysis, saved, upload, chat)
 ├── services/
 │   ├── analysis_engine.py  # Preprocessing, encoding, clustering
 │   ├── dataset_loader.py   # Download, validate, and load datasets

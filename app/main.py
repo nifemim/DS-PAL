@@ -87,7 +87,9 @@ def create_app() -> FastAPI:
                 '<link rel="stylesheet" href="/static/css/style.css">'
                 '</head><body style="display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center">'
                 '<main><h1>Under re-construction</h1>'
-                '<p>DS-PAL will be back soon!</p></main></body></html>'
+                '<p>DS-PAL will be back soon!</p>'
+                '<p>In the meantime, check out my work on <a href="https://github.com/nifemim">GitHub</a>.</p>'
+                '</main></body></html>'
             )
         response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"

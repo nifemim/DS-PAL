@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     app_host: str = "0.0.0.0"
     app_port: int = 8000
     app_debug: bool = True
+    maintenance_mode: bool = False
     database_path: str = "ds_pal.db"
     cache_dir: str = ".cache/datasets"
     max_dataset_rows: int = 10000

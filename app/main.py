@@ -74,9 +74,21 @@ def create_app() -> FastAPI:
     # Mount static files
     app.mount("/static", StaticFiles(directory=APP_DIR / "static"), name="static")
 
-    # Security headers
+    # Maintenance mode — intercept all non-static requests
     @app.middleware("http")
-    async def add_security_headers(request: Request, call_next) -> Response:
+    async def maintenance_check(request: Request, call_next) -> Response:
+        if settings.maintenance_mode and not request.url.path.startswith("/static"):
+            from fastapi.responses import HTMLResponse
+            return HTMLResponse(
+                '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">'
+                '<meta name="viewport" content="width=device-width,initial-scale=1">'
+                '<title>DS-PAL</title>'
+                '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2.0.6/css/pico.min.css">'
+                '<link rel="stylesheet" href="/static/css/style.css">'
+                '</head><body style="display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center">'
+                '<main><h1>Under re-construction</h1>'
+                '<p>DS-PAL will be back soon!</p></main></body></html>'
+            )
         response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"

@@ -53,7 +53,7 @@ async def run_analysis(
                 dataset_url=url,
                 algorithm=algorithm,
                 n_clusters=n_clusters if n_clusters and n_clusters >= 2 else None,
-                columns=columns if columns else None,
+                columns=columns,
                 categorical_columns=categorical_columns if categorical_columns else None,
                 contamination=contamination,
             ),

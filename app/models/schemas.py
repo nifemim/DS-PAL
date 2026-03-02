@@ -46,7 +46,7 @@ class ColumnInfo(BaseModel):
     null_count: int
     sample_values: List[Any] = []
     cardinality: Optional[int] = None
-    suggested_encoding: Optional[str] = None  # "one-hot", "label", "boolean", "numeric-coerce", or None
+    suggested_encoding: Optional[str] = None  # "one-hot", "label", "boolean", "numeric-coerce", "datetime", or None
     is_id_like: bool = False
 
 

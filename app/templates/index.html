@@ -24,7 +24,8 @@
 
     <form hx-post="/api/search"
           hx-target="#search-results"
-          hx-indicator="#search-spinner">
+          hx-indicator="#search-spinner"
+          hx-on="htmx:beforeRequest: document.getElementById('search-results').innerHTML = ''">
         <fieldset role="group">
             <input type="search"
                    name="query"

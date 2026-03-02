@@ -180,3 +180,17 @@ async def save_search_history(query: str, result_count: int) -> None:
         await db.commit()
     finally:
         await db.close()
+
+
+async def get_search_suggestions(prefix: str, limit: int = 5) -> List[str]:
+    """Return distinct past queries matching a prefix."""
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT DISTINCT query FROM search_history WHERE query LIKE ? ORDER BY created_at DESC LIMIT ?",
+            (f"{prefix}%", limit),
+        )
+        rows = await cursor.fetchall()
+        return [row["query"] for row in rows]
+    finally:
+        await db.close()

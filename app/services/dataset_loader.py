@@ -86,6 +86,8 @@ async def download_dataset(source: str, dataset_id: str, url: str) -> Path:
         return await _download_huggingface(dataset_id, cache_dir)
     elif source == "openml":
         return await _download_openml(dataset_id, cache_dir)
+    elif source == "zenodo":
+        return await _download_zenodo(dataset_id, cache_dir)
 
     # Generic HTTP download (data.gov and others)
     async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
@@ -239,6 +241,55 @@ async def _download_openml(dataset_id: str, cache_dir: Path) -> Path:
         f"Could not download OpenML dataset '{dataset_id}'. "
         "No downloadable file found."
     )
+
+
+async def _download_zenodo(dataset_id: str, cache_dir: Path) -> Path:
+    """Download from Zenodo using their REST API to get direct file links."""
+    api_url = f"https://zenodo.org/api/records/{dataset_id}"
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.get(api_url)
+        if resp.status_code == 404:
+            raise ValueError(f"Zenodo record {dataset_id} not found.")
+        resp.raise_for_status()
+        record = resp.json()
+
+    # Find the first data file
+    DATA_EXTS = {".csv", ".json", ".xlsx", ".parquet", ".tsv", ".zip"}
+    files = record.get("files", [])
+    data_file = None
+    for f in files:
+        key = f.get("key", "")
+        if any(key.lower().endswith(ext) for ext in DATA_EXTS):
+            data_file = f
+            break
+
+    if not data_file:
+        raise ValueError(
+            "This Zenodo record has no downloadable data files (CSV, JSON, Excel, or Parquet)."
+        )
+
+    file_url = data_file["links"]["self"]
+    filename = data_file["key"]
+
+    async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
+        resp = await client.get(file_url)
+        resp.raise_for_status()
+
+    if len(resp.content) > MAX_FILE_BYTES:
+        raise ValueError(
+            f"Dataset too large ({len(resp.content) / 1024 / 1024:.1f}MB). "
+            f"Maximum is {settings.max_file_size_mb}MB."
+        )
+
+    _validate_content(resp.content, file_url)
+
+    if filename.endswith(".zip"):
+        return _extract_zip(resp.content, cache_dir)
+
+    file_path = cache_dir / filename
+    file_path.write_bytes(resp.content)
+    logger.info("Downloaded Zenodo file %s to %s (%d bytes)", filename, file_path, len(resp.content))
+    return file_path
 
 
 def _extract_zip(content: bytes, cache_dir: Path) -> Path:

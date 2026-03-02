@@ -5,7 +5,7 @@ A dataset analysis platform with clustering, anomaly detection, interactive visu
 ## Features
 
 **Web Application**
-- Search datasets from Kaggle, HuggingFace, UCI ML Repository, and Data.gov
+- Search datasets from Kaggle, HuggingFace, data.gov, OpenML, Socrata, Zenodo, and AWS Open Data
 - Upload datasets: CSV, JSON, Excel (.xlsx), Parquet
 - Preview dataset structure with column classification and cardinality info
 - Multi-sheet Excel support with join configuration
@@ -118,6 +118,113 @@ pytest tests/test_dataset_loader.py -v
 pytest tests/test_ticket_service.py -v
 ```
 
+## System Design
+
+### Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Browser                              │
+│  Pico CSS + HTMX 1.9 + Plotly.js + Jinja2 Templates        │
+└──────────────────────────┬──────────────────────────────────┘
+                           │ HTTP (HTML partials, forms)
+┌──────────────────────────▼──────────────────────────────────┐
+│                     FastAPI App                              │
+│                                                              │
+│  Routers          Services            Providers              │
+│  ───────          ────────            ─────────              │
+│  pages.py         analysis_engine.py  datagov_provider.py    │
+│  search.py        dataset_loader.py   huggingface_provider.py│
+│  upload.py        dataset_search.py   kaggle_provider.py     │
+│  analysis.py      search_ranker.py    openml_provider.py     │
+│  saved.py         visualization.py    aws_opendata_provider.py│
+│  chat.py          insights.py         socrata_provider.py    │
+│                   storage.py          zenodo_provider.py     │
+└─────┬──────────────────┬───────────────────┬────────────────┘
+      │                  │                   │
+      ▼                  ▼                   ▼
+  SQLite (WAL)    File Cache (.cache/)   External APIs
+  ─ analyses      ─ downloaded datasets  ─ HuggingFace
+  ─ visualizations                       ─ data.gov (CKAN)
+  ─ search_history                       ─ Kaggle
+  ─ chat_messages                        ─ OpenML
+  ─ tickets                              ─ AWS Open Data (S3)
+                                         ─ Socrata
+                                         ─ Zenodo
+```
+
+### API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/` | Home page with search and upload |
+| `GET` | `/saved` | Saved analyses list |
+| `GET` | `/analysis/{id}` | Analysis detail page |
+| `GET` | `/dataset/{source}/{id}` | Dataset preview + config page |
+| `POST` | `/api/search` | Fan-out search across 7 providers |
+| `GET` | `/api/search/suggest` | Autocomplete from search history |
+| `POST` | `/api/dataset/upload` | Upload CSV/Excel/JSON/Parquet |
+| `POST` | `/api/dataset/preview` | Download and preview a dataset |
+| `POST` | `/api/analyze` | Run clustering + anomaly detection |
+| `POST` | `/api/analysis/{id}/save` | Persist analysis to database |
+| `DELETE` | `/api/saved/{id}` | Delete a saved analysis |
+| `POST` | `/api/chat/message` | Chat with PAL assistant |
+
+### Data Flow
+
+**Search → Analyze → Save:**
+
+1. User types a query. HTMX sends `POST /api/search` which fans out to 7 providers concurrently via `asyncio.gather()`. Results are ranked by fuzzy relevance (`rapidfuzz`) and returned as an HTML partial.
+2. Clicking a result opens a modal preview (`POST /api/dataset/modal-preview`). The dataset is downloaded, cached locally, and loaded into a pandas DataFrame. Column types, cardinality, and encoding suggestions are computed.
+3. User selects columns and algorithm, then submits `POST /api/analyze`. The analysis engine preprocesses data (handle missing values, encode categoricals, scale features), runs the chosen algorithm (K-Means, DBSCAN, or Hierarchical), and generates 9 Plotly visualizations.
+4. Results are held in memory (`pending_analyses`, TTL 1 hour) until the user saves them to SQLite.
+
+**Upload path:** File upload → validate size/type → cache to disk → redirect to `/dataset/upload/{id}`. Excel files with multiple sheets get a sheet selection step with optional join configuration.
+
+### Dataset Providers
+
+All providers implement the `DatasetProvider` abstract base class (`search()` + `download_url()`). Search is concurrent — all 7 providers are queried in parallel, failures are silently caught so one broken provider doesn't block results.
+
+| Provider | API | Auth | Notes |
+|----------|-----|------|-------|
+| data.gov | CKAN REST API | None | Filters to CSV/JSON resources with download URLs |
+| HuggingFace | `huggingface.co/api/datasets` | Optional token | Filters to tabular datasets |
+| Kaggle | Kaggle Python library | Username + key | Requires credentials to function |
+| OpenML | `openml.org/api/v1/json` | None | ML benchmark datasets, parquet downloads |
+| AWS Open Data | S3 static NDJSON | None | Lazy-loaded on first search, searched locally |
+| Socrata | Discovery API | None | Government portals, SODA CSV export for download |
+| Zenodo | REST API | None | Academic datasets hosted by CERN |
+
+### Database Schema
+
+SQLite with WAL mode and foreign keys enabled. Five tables:
+
+- **analyses** — saved analysis results (config, algorithm output, metadata)
+- **visualizations** — Plotly chart JSON linked to analyses (cascade delete)
+- **search_history** — logged queries for autocomplete suggestions
+- **chat_messages** — PAL conversation history with feedback flag
+- **tickets** — CLI-managed bug/task tracker
+
+### ML Pipeline
+
+The analysis engine (`analysis_engine.py`) runs this pipeline:
+
+1. **Preprocessing** — drop ID-like columns, handle missing values (drop rows or impute median/mode)
+2. **Encoding** — one-hot encode low-cardinality categoricals, label encode high-cardinality
+3. **Scaling** — StandardScaler on all features
+4. **Clustering** — K-Means (with silhouette scoring), DBSCAN (eps/min_samples), or Hierarchical (Ward linkage)
+5. **Anomaly Detection** — Isolation Forest with configurable contamination
+6. **Dimensionality Reduction** — PCA to 2D and 3D for visualization
+7. **Profiling** — cluster centroids, feature importance, correlation matrix, column stats
+
+### Frontend Stack
+
+- **Pico CSS 2.0** — classless CSS framework with dark/light theme support
+- **HTMX 1.9** — server-rendered HTML partials, no client-side framework
+- **Plotly.js 2.27** — interactive charts (scatter, heatmap, parallel coordinates, etc.)
+- **Custom CSS** — aurora gradient background, glassmorphism, Space Grotesk/Mono fonts
+- **No build step** — static files served directly by FastAPI
+
 ## Project Structure
 
 ```
@@ -134,22 +241,29 @@ app/
 │   ├── analysis_engine.py  # Preprocessing, encoding, clustering
 │   ├── dataset_loader.py   # Download, validate, and load datasets
 │   ├── dataset_search.py   # Fan-out search orchestrator
-│   ├── storage.py
+│   ├── search_ranker.py    # Fuzzy relevance ranking + dedup
+│   ├── insights.py         # LLM-generated cluster insights
+│   ├── storage.py          # Analysis + search history CRUD
+│   ├── visualization.py    # Plotly chart generation (9 types)
 │   ├── ticket_service.py
-│   ├── visualization.py
-│   └── providers/         # Dataset source providers
-│       ├── base.py        # Abstract base class
+│   └── providers/          # Dataset source providers (7)
+│       ├── base.py         # Abstract base class
 │       ├── datagov_provider.py
 │       ├── huggingface_provider.py
 │       ├── kaggle_provider.py
-│       └── uci_provider.py
+│       ├── openml_provider.py
+│       ├── aws_opendata_provider.py
+│       ├── socrata_provider.py
+│       └── zenodo_provider.py
 ├── static/               # CSS, JS
 ├── templates/            # Jinja2 templates
 ├── database.py           # SQLite setup
 └── main.py               # FastAPI app
 docs/
+├── brainstorms/          # Feature exploration documents
 ├── plans/                # Implementation plans
 └── solutions/            # Documented solutions (searchable)
+    ├── architecture-patterns/
     ├── integration-issues/
     ├── logic-errors/
     └── ui-bugs/

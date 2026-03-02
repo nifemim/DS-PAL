@@ -1,6 +1,7 @@
 """Dataset search and preview API routes."""
 import logging
 from fastapi import APIRouter, Request, Form
+from fastapi.responses import HTMLResponse
 from app.main import templates
 from app.services.dataset_search import search_all
 from app.services.dataset_loader import download_dataset, load_dataframe, build_preview
@@ -43,10 +44,10 @@ async def search_suggestions(request: Request, query: str = ""):
     """Return autocomplete suggestions from search history."""
     query = query.strip()
     if len(query) < 2:
-        return ""
+        return HTMLResponse("")
     suggestions = await get_search_suggestions(query)
     if not suggestions:
-        return ""
+        return HTMLResponse("")
     return templates.TemplateResponse(
         "partials/search_suggestions.html",
         {"request": request, "suggestions": suggestions},

@@ -90,6 +90,30 @@ def encode_categoricals(
             })
             continue
 
+        # Datetime columns: extract temporal components
+        is_datetime = pd.api.types.is_datetime64_any_dtype(dtype)
+        if not is_datetime and dtype == object and len(non_null) > 0:
+            parsed = pd.to_datetime(non_null, errors="coerce")
+            if parsed.notna().sum() / len(non_null) > 0.5:
+                is_datetime = True
+                series = pd.to_datetime(series, errors="coerce")
+
+        if is_datetime:
+            parts = pd.DataFrame(index=series.index)
+            dt = series.dt
+            parts[f"{col}_month"] = dt.month.fillna(0).astype(int)
+            parts[f"{col}_day_of_week"] = dt.dayofweek.fillna(0).astype(int)
+            if dt.hour.sum() > 0:  # Only include hour if times are present
+                parts[f"{col}_hour"] = dt.hour.fillna(0).astype(int)
+            encoded_parts.append(parts)
+            encoding_info.append({
+                "original_column": col,
+                "encoding_type": "datetime",
+                "new_columns": parts.columns.tolist(),
+                "cardinality": nunique,
+            })
+            continue
+
         # Numeric-as-string: coerce to float
         if dtype == object:
             coerced = pd.to_numeric(non_null, errors="coerce")
@@ -182,8 +206,8 @@ def preprocess(
     dropped_columns: List[Dict[str, str]] = []
 
     # Numeric pipeline
-    if columns:
-        numeric_df = df[columns].select_dtypes(include=["number"])
+    if columns is not None:
+        numeric_df = df[columns].select_dtypes(include=["number"]) if columns else pd.DataFrame(index=df.index)
     else:
         numeric_df = df.select_dtypes(include=["number"])
 
@@ -195,7 +219,8 @@ def preprocess(
     numeric_df = numeric_df.dropna(axis=1, thresh=int(threshold))
 
     # Drop rows that are entirely NaN, then impute remaining NaNs with median
-    numeric_df = numeric_df.dropna(how="all")
+    if not numeric_df.columns.empty:
+        numeric_df = numeric_df.dropna(how="all")
     numeric_features = numeric_df.columns.tolist()
     for col in numeric_features:
         median_val = numeric_df[col].median()

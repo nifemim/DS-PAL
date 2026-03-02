@@ -415,9 +415,19 @@ def _classify_column(series) -> dict:
     if pd.api.types.is_numeric_dtype(dtype):
         return {"cardinality": None, "suggested_encoding": None, "is_id_like": False}
 
-    # Datetime columns: excluded
+    # Datetime columns: extract temporal components for clustering
     if pd.api.types.is_datetime64_any_dtype(dtype):
-        return {"cardinality": None, "suggested_encoding": None, "is_id_like": False}
+        return {"cardinality": None, "suggested_encoding": "datetime", "is_id_like": False}
+
+    # Datetime-as-string: >50% values parse as dates
+    if dtype == object and len(non_null) > 0:
+        try:
+            parsed = pd.to_datetime(non_null, errors="coerce")
+            date_ratio = parsed.notna().sum() / len(non_null)
+            if date_ratio > 0.5:
+                return {"cardinality": None, "suggested_encoding": "datetime", "is_id_like": False}
+        except Exception:
+            pass
 
     # Boolean columns
     if dtype == bool or (dtype == object and set(non_null.unique()) <= {True, False}):
@@ -480,10 +490,15 @@ def build_preview(df, source: str, dataset_id: str,
         columns.append(col_info)
 
         # Encodable categorical: has a suggested encoding and is not ID-like
-        if classification["suggested_encoding"] in ("one-hot", "label", "boolean", "numeric-coerce"):
+        if classification["suggested_encoding"] in ("one-hot", "label", "boolean", "numeric-coerce", "datetime"):
             categorical_cols.append(str(col))
 
-    numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
+    # Exclude entirely-null columns — pandas defaults them to float64
+    # but they have no data and will be dropped during preprocessing
+    numeric_cols = [
+        c for c in df.select_dtypes(include=["number"]).columns
+        if df[c].notna().any()
+    ]
 
     # Build sample rows (first 5)
     sample_df = df.head(5).fillna("")

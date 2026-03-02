@@ -123,6 +123,19 @@ document.body.addEventListener("click", function (event) {
     });
 });
 
+// --- Search result sorting (client-side) ---
+
+function sortResults(by) {
+    var list = document.querySelector(".dataset-list");
+    if (!list) return;
+    var items = Array.from(list.querySelectorAll(".dataset-item"));
+    items.sort(function (a, b) {
+        if (by === "name") return a.dataset.name.localeCompare(b.dataset.name);
+        return parseInt(a.dataset.rank) - parseInt(b.dataset.rank);
+    });
+    items.forEach(function (el) { list.appendChild(el); });
+}
+
 // --- HTMX utilities ---
 
 // Clear any stuck htmx-request classes on page load

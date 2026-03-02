@@ -84,8 +84,8 @@ async def download_dataset(source: str, dataset_id: str, url: str) -> Path:
         return await _download_kaggle(dataset_id, cache_dir)
     elif source == "huggingface":
         return await _download_huggingface(dataset_id, cache_dir)
-    elif source == "uci":
-        return await _download_uci(dataset_id, cache_dir)
+    elif source == "openml":
+        return await _download_openml(dataset_id, cache_dir)
 
     # Generic HTTP download (data.gov and others)
     async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
@@ -188,35 +188,56 @@ async def _download_huggingface(dataset_id: str, cache_dir: Path) -> Path:
     return file_path
 
 
-async def _download_uci(dataset_id: str, cache_dir: Path) -> Path:
-    """Download from UCI ML Repository via static zip URL."""
-    base_url = f"https://archive.ics.uci.edu/static/public/{dataset_id}"
+async def _download_openml(dataset_id: str, cache_dir: Path) -> Path:
+    """Download from OpenML via parquet URL."""
+    # Fetch dataset metadata to get the parquet URL
+    meta_url = f"https://www.openml.org/api/v1/json/data/{dataset_id}"
 
     async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
-        # Try the base path with .zip suffix and without
-        for url in [f"{base_url}.zip", base_url]:
-            try:
-                resp = await client.get(url)
-                if resp.status_code != 200:
-                    continue
-                content_type = resp.headers.get("content-type", "")
-                # Accept zip or octet-stream responses
-                if "zip" in content_type or "octet-stream" in content_type:
-                    if len(resp.content) > MAX_FILE_BYTES:
-                        raise ValueError(
-                            f"Dataset too large ({len(resp.content) / 1024 / 1024:.1f}MB). "
-                            f"Maximum is {settings.max_file_size_mb}MB."
-                        )
-                    return _extract_zip(resp.content, cache_dir)
-            except ValueError:
-                raise
-            except Exception as e:
-                logger.debug("UCI download attempt %s failed: %s", url, e)
-                continue
+        resp = await client.get(meta_url)
+        resp.raise_for_status()
+        meta = resp.json()
+
+    ds_info = meta.get("data_set_description", {})
+    ds_name = ds_info.get("name", dataset_id)
+
+    # Try parquet URL first (preferred), fall back to CSV-compatible download
+    parquet_url = f"https://www.openml.org/data/download/{dataset_id}/{ds_name}.parquet"
+
+    async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
+        resp = await client.get(parquet_url)
+        if resp.status_code == 200 and len(resp.content) > 0:
+            _validate_content(resp.content, parquet_url)
+            if len(resp.content) > MAX_FILE_BYTES:
+                raise ValueError(
+                    f"Dataset too large ({len(resp.content) / 1024 / 1024:.1f}MB). "
+                    f"Maximum is {settings.max_file_size_mb}MB."
+                )
+            file_path = cache_dir / "data.parquet"
+            file_path.write_bytes(resp.content)
+            logger.info("Downloaded OpenML %s to %s (%d bytes)", dataset_id, file_path, len(resp.content))
+            return file_path
+
+        # Fall back to ARFF download URL from metadata
+        file_url = ds_info.get("url", "")
+        if file_url:
+            resp = await client.get(file_url)
+            resp.raise_for_status()
+            _validate_content(resp.content, file_url)
+            if len(resp.content) > MAX_FILE_BYTES:
+                raise ValueError(
+                    f"Dataset too large ({len(resp.content) / 1024 / 1024:.1f}MB). "
+                    f"Maximum is {settings.max_file_size_mb}MB."
+                )
+            # Save as CSV — many ARFF files are CSV-compatible
+            file_path = cache_dir / "data.csv"
+            file_path.write_bytes(resp.content)
+            logger.info("Downloaded OpenML %s (ARFF fallback) to %s", dataset_id, file_path)
+            return file_path
 
     raise ValueError(
-        f"Could not download UCI dataset '{dataset_id}'. "
-        "The UCI repository may not have a direct download available for this dataset."
+        f"Could not download OpenML dataset '{dataset_id}'. "
+        "No downloadable file found."
     )
 
 

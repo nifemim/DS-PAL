@@ -14,3 +14,4 @@ openpyxl>=3.1,<4.0
 pyarrow>=14.0
 python-dotenv>=1.0,<2.0
 kaggle>=1.5,<2.0
+rapidfuzz>=3.0,<4.0

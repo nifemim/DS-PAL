@@ -73,12 +73,12 @@ class TestDownloadRouting:
             mock.assert_called_once_with("org/dataset", tmp_path)
 
     @pytest.mark.asyncio
-    async def test_routes_to_uci(self, tmp_path):
+    async def test_routes_to_openml(self, tmp_path):
         with patch("app.services.dataset_loader._cache_path", return_value=tmp_path), \
-             patch("app.services.dataset_loader._download_uci", new_callable=AsyncMock) as mock:
-            mock.return_value = tmp_path / "data.csv"
-            await download_dataset("uci", "53", "http://example.com")
-            mock.assert_called_once_with("53", tmp_path)
+             patch("app.services.dataset_loader._download_openml", new_callable=AsyncMock) as mock:
+            mock.return_value = tmp_path / "data.parquet"
+            await download_dataset("openml", "61", "http://example.com")
+            mock.assert_called_once_with("61", tmp_path)
 
     @pytest.mark.asyncio
     async def test_generic_download_validates_content(self, tmp_path):

@@ -4,7 +4,7 @@
 {% if insights_enabled %}
 <article id="cluster-insights"
          hx-get="/api/analysis/{{ analysis.id }}/insights"
-         hx-trigger="load"
+         hx-trigger="revealed"
          hx-swap="innerHTML">
     {% include "partials/skeleton.html" %}
 </article>

@@ -1,0 +1,5 @@
+<ul class="search-suggestions-list">
+    {% for s in suggestions %}
+    <li onclick="document.querySelector('input[name=query]').value='{{ s }}'; document.getElementById('search-suggestions').innerHTML='';">{{ s }}</li>
+    {% endfor %}
+</ul>

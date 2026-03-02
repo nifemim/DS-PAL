@@ -4,7 +4,7 @@
 {% block content %}
 <section>
     <h1>Find & Analyze Datasets <sup style="font-size:0.4em; vertical-align:super; opacity:0.7;">BETA</sup></h1>
-    <p>Search across Kaggle, data.gov, UCI ML Repository, and HuggingFace for public datasets.</p>
+    <p>Search across Kaggle, data.gov, HuggingFace, OpenML, and more for public datasets.</p>
 
     <form id="upload-form"
           action="/api/dataset/upload"
@@ -25,16 +25,23 @@
     <form hx-post="/api/search"
           hx-target="#search-results"
           hx-indicator="#search-spinner"
-          hx-on="htmx:beforeRequest: document.getElementById('search-results').innerHTML = ''">
+          hx-on="htmx:beforeRequest: document.getElementById('search-results').innerHTML = ''; document.getElementById('search-suggestions').innerHTML = '';"
+          style="position: relative;">
         <fieldset role="group">
             <input type="search"
                    name="query"
                    placeholder="e.g., air quality in California"
                    required
                    minlength="2"
-                   aria-label="Search datasets">
+                   aria-label="Search datasets"
+                   hx-get="/api/search/suggest"
+                   hx-trigger="input changed delay:300ms"
+                   hx-target="#search-suggestions"
+                   hx-indicator="none"
+                   autocomplete="off">
             <button type="submit">Search</button>
         </fieldset>
+        <div id="search-suggestions"></div>
     </form>
     <small style="color: var(--pico-muted-color);">or <a href="#" id="upload-pick-btn" class="upload-link">upload</a> CSV, Excel, JSON, or Parquet</small>
 </section>

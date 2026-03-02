@@ -62,13 +62,16 @@ class ZenodoProvider(DatasetProvider):
                     elif total_bytes > 1024:
                         size = f"{total_bytes / 1024:.0f} KB"
 
-                # Determine format from filenames
+                # Determine format from filenames — skip records without data files
                 fmt = ""
                 if files:
                     exts = {f.get("key", "").rsplit(".", 1)[-1].upper() for f in files if "." in f.get("key", "")}
-                    data_exts = exts & {"CSV", "JSON", "PARQUET", "XLSX", "TSV", "ZIP"}
+                    data_exts = exts & {"CSV", "JSON", "PARQUET", "XLSX", "TSV"}
                     if data_exts:
                         fmt = ", ".join(sorted(data_exts))
+
+                if not fmt:
+                    continue  # no tabular data files — skip this record
 
                 results.append(DatasetResult(
                     source="zenodo",

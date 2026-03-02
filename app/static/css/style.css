@@ -198,6 +198,35 @@ fieldset[role="group"] button {
     outline: none !important;
 }
 
+/* Search suggestions dropdown */
+#search-suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 10;
+}
+
+.search-suggestions-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--pico-primary);
+    border-top: none;
+    background: var(--pico-background-color);
+}
+
+.search-suggestions-list li {
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+.search-suggestions-list li:hover {
+    background: var(--pico-primary);
+    color: var(--pico-primary-inverse);
+}
+
 /* Upload link in hint text */
 .upload-link {
     color: var(--pico-muted-color);

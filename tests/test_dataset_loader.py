@@ -154,6 +154,140 @@ class TestDownloadRouting:
             assert not cached_file.exists() or cached_file.read_bytes() == b"x,y\n3,4\n"
 
 
+class TestZenodoDownload:
+    """Tests for _download_zenodo() handler."""
+
+    @pytest.mark.asyncio
+    async def test_routes_to_zenodo(self, tmp_path):
+        with patch("app.services.dataset_loader._cache_path", return_value=tmp_path), \
+             patch("app.services.dataset_loader._download_zenodo", new_callable=AsyncMock) as mock:
+            mock.return_value = tmp_path / "data.csv"
+            await download_dataset("zenodo", "12345", "https://zenodo.org/records/12345")
+            mock.assert_called_once_with("12345", tmp_path)
+
+    @pytest.mark.asyncio
+    async def test_downloads_csv_file(self, tmp_path):
+        from app.services.dataset_loader import _download_zenodo
+
+        api_response = MagicMock()
+        api_response.status_code = 200
+        api_response.json.return_value = {
+            "files": [
+                {"key": "data.csv", "links": {"self": "https://zenodo.org/api/records/12345/files/data.csv/content"}}
+            ]
+        }
+        api_response.raise_for_status = MagicMock()
+
+        file_response = MagicMock()
+        file_response.content = b"name,age\nAlice,30\n"
+        file_response.raise_for_status = MagicMock()
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(side_effect=[api_response, file_response])
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            result = await _download_zenodo("12345", tmp_path)
+        assert result.name == "data.csv"
+        assert result.read_bytes() == b"name,age\nAlice,30\n"
+
+    @pytest.mark.asyncio
+    async def test_404_raises_clear_error(self, tmp_path):
+        from app.services.dataset_loader import _download_zenodo
+
+        api_response = MagicMock()
+        api_response.status_code = 404
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=api_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            with pytest.raises(ValueError, match="not found"):
+                await _download_zenodo("99999", tmp_path)
+
+    @pytest.mark.asyncio
+    async def test_no_data_files_raises_error(self, tmp_path):
+        from app.services.dataset_loader import _download_zenodo
+
+        api_response = MagicMock()
+        api_response.status_code = 200
+        api_response.json.return_value = {
+            "files": [
+                {"key": "readme.pdf", "links": {"self": "https://zenodo.org/api/records/12345/files/readme.pdf/content"}}
+            ]
+        }
+        api_response.raise_for_status = MagicMock()
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=api_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            with pytest.raises(ValueError, match="no downloadable data files"):
+                await _download_zenodo("12345", tmp_path)
+
+    @pytest.mark.asyncio
+    async def test_file_size_limit_enforced(self, tmp_path):
+        from app.services.dataset_loader import _download_zenodo
+
+        api_response = MagicMock()
+        api_response.status_code = 200
+        api_response.json.return_value = {
+            "files": [
+                {"key": "huge.csv", "links": {"self": "https://zenodo.org/api/records/12345/files/huge.csv/content"}}
+            ]
+        }
+        api_response.raise_for_status = MagicMock()
+
+        # Content just over the limit
+        file_response = MagicMock()
+        file_response.content = b"x" * 100
+        file_response.raise_for_status = MagicMock()
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(side_effect=[api_response, file_response])
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("httpx.AsyncClient", return_value=mock_client), \
+             patch("app.services.dataset_loader.MAX_FILE_BYTES", 50):
+            with pytest.raises(ValueError, match="too large"):
+                await _download_zenodo("12345", tmp_path)
+
+    @pytest.mark.asyncio
+    async def test_picks_first_data_file(self, tmp_path):
+        from app.services.dataset_loader import _download_zenodo
+
+        api_response = MagicMock()
+        api_response.status_code = 200
+        api_response.json.return_value = {
+            "files": [
+                {"key": "readme.txt", "links": {"self": "https://example.com/readme.txt"}},
+                {"key": "results.csv", "links": {"self": "https://example.com/results.csv"}},
+                {"key": "backup.json", "links": {"self": "https://example.com/backup.json"}},
+            ]
+        }
+        api_response.raise_for_status = MagicMock()
+
+        file_response = MagicMock()
+        file_response.content = b"col1,col2\n1,2\n"
+        file_response.raise_for_status = MagicMock()
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(side_effect=[api_response, file_response])
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            result = await _download_zenodo("12345", tmp_path)
+        # Should pick results.csv (first data file), not readme.txt
+        assert result.name == "results.csv"
+
+
 class TestDirectDownloadFilter:
     """Tests for data.gov URL filtering."""
 

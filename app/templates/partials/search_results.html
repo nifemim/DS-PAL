@@ -15,7 +15,7 @@
         <div class="dataset-item-header">
             <span class="source-badge">{{ ds.source }}</span>
             <h4><a href="#"
-                   onclick="event.preventDefault(); document.getElementById('preview-modal').showModal()"
+                   onclick="event.preventDefault(); document.getElementById('modal-content').innerHTML=''; document.getElementById('preview-modal').showModal()"
                    hx-post="/api/dataset/modal-preview"
                    hx-target="#modal-content"
                    hx-indicator="#modal-spinner"

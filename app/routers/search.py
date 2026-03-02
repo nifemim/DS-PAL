@@ -5,7 +5,7 @@ from app.main import templates
 from app.services.dataset_search import search_all
 from app.services.dataset_loader import download_dataset, load_dataframe, build_preview
 from app.services.search_ranker import rank_results
-from app.services.storage import save_search_history
+from app.services.storage import save_search_history, get_search_suggestions
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["search"])
@@ -36,6 +36,21 @@ async def search_datasets(request: Request, query: str = Form(...)):
             "partials/error.html",
             {"request": request, "message": f"Search failed: {str(e)}"},
         )
+
+
+@router.get("/search/suggest")
+async def search_suggestions(request: Request, query: str = ""):
+    """Return autocomplete suggestions from search history."""
+    query = query.strip()
+    if len(query) < 2:
+        return ""
+    suggestions = await get_search_suggestions(query)
+    if not suggestions:
+        return ""
+    return templates.TemplateResponse(
+        "partials/search_suggestions.html",
+        {"request": request, "suggestions": suggestions},
+    )
 
 
 @router.post("/dataset/preview")

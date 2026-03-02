@@ -66,7 +66,8 @@ async def download_dataset(source: str, dataset_id: str, url: str) -> Path:
 
     # Check if we already have a cached file (validate it's real data, not stale HTML/XML)
     cached_files = list(cache_dir.glob("*.csv")) + list(cache_dir.glob("*.json")) + \
-                   list(cache_dir.glob("*.parquet")) + list(cache_dir.glob("*.xlsx"))
+                   list(cache_dir.glob("*.parquet")) + list(cache_dir.glob("*.xlsx")) + \
+                   list(cache_dir.glob("*.tsv"))
     if cached_files:
         cached = cached_files[0]
         try:
@@ -253,13 +254,13 @@ async def _download_zenodo(dataset_id: str, cache_dir: Path) -> Path:
         resp.raise_for_status()
         record = resp.json()
 
-    # Find the first data file
-    DATA_EXTS = {".csv", ".json", ".xlsx", ".parquet", ".tsv", ".zip"}
+    # Find the first tabular data file
+    DATA_EXTS = {".csv", ".json", ".xlsx", ".parquet", ".tsv"}
     files = record.get("files", [])
     data_file = None
     for f in files:
-        key = f.get("key", "")
-        if any(key.lower().endswith(ext) for ext in DATA_EXTS):
+        key = f.get("key", "").lower()
+        if any(key.endswith(ext) for ext in DATA_EXTS):
             data_file = f
             break
 
@@ -283,9 +284,6 @@ async def _download_zenodo(dataset_id: str, cache_dir: Path) -> Path:
 
     _validate_content(resp.content, file_url)
 
-    if filename.endswith(".zip"):
-        return _extract_zip(resp.content, cache_dir)
-
     file_path = cache_dir / filename
     file_path.write_bytes(resp.content)
     logger.info("Downloaded Zenodo file %s to %s (%d bytes)", filename, file_path, len(resp.content))
@@ -296,11 +294,13 @@ def _extract_zip(content: bytes, cache_dir: Path) -> Path:
     """Extract a zip file and return path to the data file inside."""
     with zipfile.ZipFile(io.BytesIO(content)) as zf:
         # Find data files in the zip
+        data_exts = (".csv", ".json", ".parquet", ".xlsx", ".tsv")
         data_files = [
             f for f in zf.namelist()
-            if f.endswith((".csv", ".json", ".parquet", ".xlsx"))
+            if f.endswith(data_exts)
             and not f.startswith("__MACOSX")
         ]
+
         if not data_files:
             raise ValueError("No supported data files found in zip archive")
 
@@ -376,7 +376,9 @@ def load_dataframe(
         max_rows = settings.max_dataset_rows
     suffix = file_path.suffix.lower()
 
-    if suffix == ".csv":
+    if suffix == ".tsv":
+        df = pd.read_csv(file_path, sep="\t", nrows=max_rows, on_bad_lines="skip")
+    elif suffix == ".csv":
         df = pd.read_csv(file_path, nrows=max_rows, on_bad_lines="skip")
     elif suffix == ".json":
         df = pd.read_json(file_path)

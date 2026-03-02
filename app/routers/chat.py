@@ -119,24 +119,30 @@ async def handle_message(
             exc.response.status_code, session_id,
         )
         return _ERROR_MSG
+    except (httpx.RequestError, KeyError, ValueError) as exc:
+        logger.error("LLM call failed for session %s: %s", session_id, exc)
+        return _ERROR_MSG
 
     entry["messages"].append({"role": "assistant", "content": reply})
 
-    # Save to DB
-    is_feedback = int("feedback" in user_message.lower())
-    db = await get_db()
+    # Save to DB (best-effort — don't let DB errors break the chat)
     try:
-        await db.executemany(
-            "INSERT INTO chat_messages (session_id, role, content, is_feedback) "
-            "VALUES (?, ?, ?, ?)",
-            [
-                (session_id, "user", user_message, is_feedback),
-                (session_id, "assistant", reply, is_feedback),
-            ],
-        )
-        await db.commit()
-    finally:
-        await db.close()
+        is_feedback = int("feedback" in user_message.lower())
+        db = await get_db()
+        try:
+            await db.executemany(
+                "INSERT INTO chat_messages (session_id, role, content, is_feedback) "
+                "VALUES (?, ?, ?, ?)",
+                [
+                    (session_id, "user", user_message, is_feedback),
+                    (session_id, "assistant", reply, is_feedback),
+                ],
+            )
+            await db.commit()
+        finally:
+            await db.close()
+    except Exception as exc:
+        logger.error("Failed to save chat message for session %s: %s", session_id, exc)
 
     return reply
 

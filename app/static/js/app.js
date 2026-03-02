@@ -123,6 +123,38 @@ document.body.addEventListener("click", function (event) {
     });
 });
 
+// --- Search suggestions keyboard navigation ---
+
+(function () {
+    var input = document.querySelector('input[name="query"]');
+    if (!input) return;
+
+    input.addEventListener("keydown", function (e) {
+        var list = document.getElementById("search-suggestions");
+        if (!list) return;
+        var items = list.querySelectorAll("li");
+        if (!items.length) return;
+
+        var active = list.querySelector("li.active");
+        var idx = active ? Array.from(items).indexOf(active) : -1;
+
+        if (e.key === "ArrowDown") {
+            e.preventDefault();
+            if (active) active.classList.remove("active");
+            idx = (idx + 1) % items.length;
+            items[idx].classList.add("active");
+        } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            if (active) active.classList.remove("active");
+            idx = idx <= 0 ? items.length - 1 : idx - 1;
+            items[idx].classList.add("active");
+        } else if (e.key === "Enter" && active) {
+            e.preventDefault();
+            active.click();
+        }
+    });
+})();
+
 // --- Search result sorting (client-side) ---
 
 function sortResults(by) {

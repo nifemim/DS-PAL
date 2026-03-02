@@ -220,9 +220,15 @@ fieldset[role="group"] button {
     padding: 0.5rem 0.75rem;
     cursor: pointer;
     font-size: 0.9rem;
+    list-style: none;
 }
 
-.search-suggestions-list li:hover {
+.search-suggestions-list li::marker {
+    content: none;
+}
+
+.search-suggestions-list li:hover,
+.search-suggestions-list li.active {
     background: var(--pico-primary);
     color: var(--pico-primary-inverse);
 }

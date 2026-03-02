@@ -235,6 +235,27 @@ fieldset[role="group"] button {
     border: none !important;
 }
 
+/* Search results header with sort dropdown */
+.search-results-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1rem;
+}
+.search-results-header select {
+    width: auto;
+    margin-bottom: 0;
+    padding: 0.25rem 2rem 0.25rem 0.5rem;
+    font-size: 0.85rem;
+    cursor: pointer;
+    border-color: var(--pico-muted-border-color);
+    transition: border-color 0.2s, color 0.2s;
+}
+.search-results-header select:hover {
+    border-color: var(--pico-primary);
+    color: var(--pico-primary);
+}
+
 /* Dataset list (Wikipedia-style search results) */
 .dataset-list {
     margin-top: 1rem;

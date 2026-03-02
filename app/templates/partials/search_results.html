@@ -1,9 +1,17 @@
-<h3>Results for "{{ query }}" ({{ results|length }} found)</h3>
+<div class="search-results-header">
+    <h3>Results for "{{ query }}" ({{ results|length }} found){% if providers %} <small>— from {{ providers|join(", ") }}</small>{% endif %}</h3>
+    {% if results|length > 1 %}
+    <select id="sort-select" onchange="sortResults(this.value)">
+        <option value="relevance">Relevance</option>
+        <option value="name">Name A-Z</option>
+    </select>
+    {% endif %}
+</div>
 
 {% if results %}
 <div class="dataset-list">
     {% for ds in results %}
-    <div class="dataset-item">
+    <div class="dataset-item" data-name="{{ ds.name|lower }}" data-rank="{{ loop.index }}">
         <div class="dataset-item-header">
             <span class="source-badge">{{ ds.source }}</span>
             <h4><a href="#"

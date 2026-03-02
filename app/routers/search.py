@@ -4,6 +4,7 @@ from fastapi import APIRouter, Request, Form
 from app.main import templates
 from app.services.dataset_search import search_all
 from app.services.dataset_loader import download_dataset, load_dataframe, build_preview
+from app.services.search_ranker import rank_results
 from app.services.storage import save_search_history
 
 logger = logging.getLogger(__name__)
@@ -21,12 +22,13 @@ async def search_datasets(request: Request, query: str = Form(...)):
         )
 
     try:
-        results = await search_all(query)
+        results, providers = await search_all(query)
+        results = rank_results(query, results)
         await save_search_history(query, len(results))
 
         return templates.TemplateResponse(
             "partials/search_results.html",
-            {"request": request, "query": query, "results": results},
+            {"request": request, "query": query, "results": results, "providers": providers},
         )
     except Exception as e:
         logger.error("Search failed: %s", e)

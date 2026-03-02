@@ -4,19 +4,21 @@ import logging
 import math
 from typing import List
 
-import numpy as np
-import plotly.graph_objects as go
-import plotly.express as px
-from plotly.subplots import make_subplots
-
 from app.models.schemas import AnalysisOutput, ChartData
 
 logger = logging.getLogger(__name__)
 
-COLORS = px.colors.qualitative.Set2
+
+def _get_imports():
+    """Lazy-load heavy plotting dependencies."""
+    import numpy as np
+    import plotly.graph_objects as go
+    import plotly.express as px
+    from plotly.subplots import make_subplots
+    return np, go, px, make_subplots
 
 
-def _to_chart(fig: go.Figure, chart_type: str, title: str) -> ChartData:
+def _to_chart(fig, chart_type: str, title: str) -> ChartData:
     """Convert a Plotly figure to ChartData."""
     fig.update_layout(
         template="plotly_white",
@@ -34,6 +36,7 @@ def _to_chart(fig: go.Figure, chart_type: str, title: str) -> ChartData:
 
 def scatter_2d(analysis: AnalysisOutput) -> ChartData:
     """2D PCA cluster scatter plot."""
+    np, go, px, _ = _get_imports()
     coords = np.array(analysis.pca_2d)
     labels = np.array(analysis.cluster_labels)
 
@@ -60,6 +63,7 @@ def scatter_2d(analysis: AnalysisOutput) -> ChartData:
 
 def scatter_3d(analysis: AnalysisOutput) -> ChartData:
     """3D PCA cluster scatter plot."""
+    np, go, px, _ = _get_imports()
     coords = np.array(analysis.pca_3d)
     labels = np.array(analysis.cluster_labels)
 
@@ -86,6 +90,8 @@ def scatter_3d(analysis: AnalysisOutput) -> ChartData:
 
 def cluster_sizes(analysis: AnalysisOutput) -> ChartData:
     """Bar chart of cluster sizes."""
+    _, go, px, _ = _get_imports()
+    COLORS = px.colors.qualitative.Set2
     profiles = analysis.cluster_profiles
     ids = [f"Cluster {p.cluster_id}" for p in profiles]
     sizes = [p.size for p in profiles]
@@ -108,6 +114,8 @@ def cluster_sizes(analysis: AnalysisOutput) -> ChartData:
 
 def feature_boxplots(analysis: AnalysisOutput) -> ChartData:
     """Box plots of features per cluster."""
+    _, go, px, make_subplots = _get_imports()
+    COLORS = px.colors.qualitative.Set2
     labels = analysis.cluster_labels
     features = analysis.feature_names
     profiles = analysis.cluster_profiles
@@ -142,6 +150,7 @@ def feature_boxplots(analysis: AnalysisOutput) -> ChartData:
 
 def correlation_heatmap(analysis: AnalysisOutput) -> ChartData:
     """Correlation matrix heatmap."""
+    _, go, _, _ = _get_imports()
     corr = analysis.correlation_matrix
     features = list(corr.keys())
     values = [[corr[f1].get(f2, 0) for f2 in features] for f1 in features]
@@ -162,6 +171,8 @@ def correlation_heatmap(analysis: AnalysisOutput) -> ChartData:
 
 def silhouette_plot(analysis: AnalysisOutput) -> ChartData:
     """Silhouette score visualization — show score per cluster as bar chart."""
+    _, go, px, _ = _get_imports()
+    COLORS = px.colors.qualitative.Set2
     profiles = analysis.cluster_profiles
     sil = analysis.silhouette_score
 
@@ -190,6 +201,7 @@ def silhouette_plot(analysis: AnalysisOutput) -> ChartData:
 
 def parallel_coordinates(analysis: AnalysisOutput) -> ChartData:
     """Parallel coordinates plot showing cluster separation across features."""
+    _, go, _, _ = _get_imports()
     profiles = analysis.cluster_profiles
     features = analysis.feature_names[:8]  # Limit features for readability
 
@@ -219,6 +231,7 @@ def parallel_coordinates(analysis: AnalysisOutput) -> ChartData:
 
 def anomaly_overlay(analysis: AnalysisOutput) -> ChartData:
     """2D scatter with anomalies highlighted."""
+    np, go, _, _ = _get_imports()
     coords = np.array(analysis.pca_2d)
     anomalies = np.array(analysis.anomaly_labels)
 
@@ -253,6 +266,7 @@ def anomaly_overlay(analysis: AnalysisOutput) -> ChartData:
 
 def feature_distributions(analysis: AnalysisOutput) -> ChartData:
     """Per-column distribution box plots from summary stats (max 12 columns)."""
+    _, go, _, make_subplots = _get_imports()
     features = analysis.feature_names[:12]
     n = len(features)
     cols = min(n, 3)

@@ -5,14 +5,6 @@ import uuid
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Any, Tuple
 
-import numpy as np
-import pandas as pd
-from sklearn.cluster import KMeans, DBSCAN, AgglomerativeClustering
-from sklearn.decomposition import PCA
-from sklearn.ensemble import IsolationForest
-from sklearn.metrics import silhouette_score
-from sklearn.preprocessing import StandardScaler, LabelEncoder
-
 from app.models.schemas import AnalysisOutput, ClusterProfile, DroppedColumn
 
 logger = logging.getLogger(__name__)
@@ -21,7 +13,7 @@ logger = logging.getLogger(__name__)
 @dataclass(frozen=True)
 class EncodingResult:
     """Result of categorical encoding."""
-    encoded_df: pd.DataFrame
+    encoded_df: object  # pd.DataFrame
     encoding_info: list
     skipped_columns: list
 
@@ -29,20 +21,22 @@ class EncodingResult:
 @dataclass(frozen=True)
 class PreprocessResult:
     """Result of the full preprocessing pipeline."""
-    numeric_df: pd.DataFrame
-    scaled_df: pd.DataFrame
+    numeric_df: object  # pd.DataFrame
+    scaled_df: object  # pd.DataFrame
     feature_names: list
     encoding_info: list
     dropped_columns: list
 
 
 def encode_categoricals(
-    df: pd.DataFrame,
+    df,
     categorical_columns: List[str],
     cardinality_threshold: int = 10,
     max_total_features: int = 100,
 ) -> EncodingResult:
     """Encode categorical columns. Returns EncodingResult with encoded DataFrame, metadata, and skipped columns."""
+    import pandas as pd
+    from sklearn.preprocessing import LabelEncoder
     if not categorical_columns:
         return EncodingResult(encoded_df=pd.DataFrame(index=df.index), encoding_info=[], skipped_columns=[])
 
@@ -175,7 +169,7 @@ def encode_categoricals(
 
 
 def preprocess(
-    df: pd.DataFrame,
+    df,
     columns: Optional[List[str]] = None,
     categorical_columns: Optional[List[str]] = None,
 ) -> PreprocessResult:
@@ -183,6 +177,8 @@ def preprocess(
 
     Returns PreprocessResult with numeric_df, scaled_df, feature_names, encoding_info, dropped_columns.
     """
+    import pandas as pd
+    from sklearn.preprocessing import StandardScaler
     dropped_columns: List[Dict[str, str]] = []
 
     # Numeric pipeline
@@ -229,8 +225,11 @@ def preprocess(
 
     feature_names = combined_df.columns.tolist()
     if len(feature_names) < 2:
+        dropped_desc = ", ".join(f"{d['column']} ({d['reason']})" for d in dropped_columns)
+        hint = f" Dropped: {dropped_desc}." if dropped_columns else ""
         raise ValueError(
-            f"Need at least 2 features for analysis, found {len(feature_names)}"
+            f"Need at least 2 features for analysis, found {len(feature_names)}.{hint} "
+            f"Try selecting more columns or a different dataset."
         )
 
     # Scale
@@ -248,9 +247,11 @@ def preprocess(
 
 
 def reduce_dimensions(
-    scaled_df: pd.DataFrame,
-) -> Tuple[np.ndarray, np.ndarray]:
+    scaled_df,
+) -> Tuple:
     """PCA to 2D and 3D for visualization."""
+    import numpy as np
+    from sklearn.decomposition import PCA
     n_features = scaled_df.shape[1]
     values = scaled_df.values
 
@@ -263,8 +264,10 @@ def reduce_dimensions(
     return coords_2d, coords_3d
 
 
-def find_optimal_k(scaled_df: pd.DataFrame) -> int:
+def find_optimal_k(scaled_df) -> int:
     """Find optimal number of clusters via silhouette score sweep."""
+    from sklearn.cluster import KMeans
+    from sklearn.metrics import silhouette_score
     n = len(scaled_df)
     max_k = min(10, int(math.sqrt(n)))
     max_k = max(max_k, 3)  # At least try up to k=3
@@ -289,8 +292,9 @@ def find_optimal_k(scaled_df: pd.DataFrame) -> int:
     return best_k
 
 
-def _auto_eps(scaled_data: np.ndarray, min_samples: int) -> float:
+def _auto_eps(scaled_data, min_samples: int) -> float:
     """Auto-select DBSCAN eps using median k-nearest-neighbor distance."""
+    import numpy as np
     from sklearn.neighbors import NearestNeighbors
 
     k = min(min_samples, len(scaled_data) - 1)
@@ -304,11 +308,13 @@ def _auto_eps(scaled_data: np.ndarray, min_samples: int) -> float:
 
 
 def cluster(
-    scaled_df: pd.DataFrame,
+    scaled_df,
     algorithm: str = "kmeans",
     n_clusters: Optional[int] = None,
-) -> Tuple[np.ndarray, int, Optional[float], Dict[str, Any]]:
+) -> Tuple:
     """Run clustering. Returns (labels, n_clusters, silhouette, params)."""
+    from sklearn.cluster import KMeans, DBSCAN, AgglomerativeClustering
+    from sklearn.metrics import silhouette_score
     values = scaled_df.values
 
     if algorithm == "kmeans":
@@ -354,9 +360,9 @@ def cluster(
 
 
 def profile_clusters(
-    numeric_df: pd.DataFrame,
-    scaled_df: pd.DataFrame,
-    labels: np.ndarray,
+    numeric_df,
+    scaled_df,
+    labels,
     feature_names: List[str],
     encoding_info: Optional[List[Dict[str, Any]]] = None,
 ) -> List[ClusterProfile]:
@@ -415,10 +421,12 @@ def profile_clusters(
 
 
 def detect_anomalies(
-    scaled_df: pd.DataFrame,
+    scaled_df,
     contamination: float = 0.05,
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> Tuple:
     """Detect anomalies using Isolation Forest. Returns (labels, scores)."""
+    import numpy as np
+    from sklearn.ensemble import IsolationForest
     model = IsolationForest(contamination=contamination, random_state=42)
     labels = model.fit_predict(scaled_df.values)
     scores = model.decision_function(scaled_df.values)
@@ -430,7 +438,7 @@ def detect_anomalies(
 
 
 def compute_stats(
-    numeric_df: pd.DataFrame,
+    numeric_df,
     feature_names: List[str],
 ) -> Tuple[Dict[str, Dict[str, float]], Dict[str, Dict[str, Any]]]:
     """Compute correlation matrix and per-column statistics."""
@@ -461,7 +469,7 @@ def compute_stats(
 
 
 def run(
-    df: pd.DataFrame,
+    df,
     dataset_name: str,
     dataset_source: str,
     dataset_id: str,

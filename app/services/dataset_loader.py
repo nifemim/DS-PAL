@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 import httpx
-import pandas as pd
 
 from app.config import settings
 from app.models.schemas import DatasetPreview, ColumnInfo
@@ -318,6 +317,7 @@ def detect_sheets(file_path: Path) -> list[dict]:
 
     Returns list of dicts with keys: name, num_rows, num_columns, columns.
     """
+    import pandas as pd
     xls = pd.ExcelFile(file_path)
     sheets = []
     for name in xls.sheet_names:
@@ -334,13 +334,14 @@ def detect_sheets(file_path: Path) -> list[dict]:
 def join_sheets(
     file_path: Path,
     sheet_configs: list[dict],
-) -> pd.DataFrame:
+):
     """Load and sequentially join multiple Excel sheets.
 
     sheet_configs: [{"name": "Sheet1", "join_key": "col", "join_type": "inner"}, ...]
     The first entry only needs "name". Subsequent entries need join_key and join_type.
     Returns the joined DataFrame (no row cap — bounded by upload file size limit).
     """
+    import pandas as pd
     result = pd.read_excel(file_path, sheet_name=sheet_configs[0]["name"])
 
     for config in sheet_configs[1:]:
@@ -355,7 +356,7 @@ def join_sheets(
     return result
 
 
-def save_joined_csv(df: pd.DataFrame, upload_id: str) -> Path:
+def save_joined_csv(df, upload_id: str) -> Path:
     """Save a joined DataFrame as CSV in the upload's cache directory."""
     cache_dir = _cache_path("upload", upload_id)
     joined_path = cache_dir / "joined.csv"
@@ -367,8 +368,9 @@ def load_dataframe(
     file_path: Path,
     max_rows: Optional[int] = None,
     sheet_name: Optional[str] = None,
-) -> pd.DataFrame:
+):
     """Load a data file into a pandas DataFrame."""
+    import pandas as pd
     # Joined CSVs are user-controlled — don't apply the row cap
     if file_path.name == "joined.csv":
         max_rows = None
@@ -398,11 +400,12 @@ def load_dataframe(
     return df
 
 
-def _classify_column(series: pd.Series) -> dict:
+def _classify_column(series) -> dict:
     """Classify a column and return encoding metadata.
 
     Returns dict with keys: cardinality, suggested_encoding, is_id_like.
     """
+    import pandas as pd
     dtype = series.dtype
     name = series.name
     n_rows = len(series)
@@ -446,7 +449,7 @@ def _classify_column(series: pd.Series) -> dict:
         return {"cardinality": nunique, "suggested_encoding": "label", "is_id_like": False}
 
 
-def build_preview(df: pd.DataFrame, source: str, dataset_id: str,
+def build_preview(df, source: str, dataset_id: str,
                   name: str, url: str = "") -> DatasetPreview:
     """Build a DatasetPreview from a DataFrame."""
     columns = []

@@ -1,0 +1,86 @@
+<h3>Cluster Descriptions</h3>
+
+<!-- LLM-generated cluster insights -->
+{% if insights_enabled %}
+<article id="cluster-insights"
+         hx-get="/api/analysis/{{ analysis.id }}/insights"
+         hx-trigger="load"
+         hx-swap="innerHTML">
+    {% include "partials/skeleton.html" %}
+</article>
+{% endif %}
+
+<!-- Algorithm and params -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="value">{{ analysis.algorithm|upper }}</div>
+        <div class="label">Algorithm</div>
+    </div>
+    <div class="stat-card">
+        <div class="value">{{ analysis.n_clusters }}</div>
+        <div class="label">Clusters Found</div>
+    </div>
+    <div class="stat-card">
+        <div class="value">{{ "%.3f"|format(analysis.silhouette_score) if analysis.silhouette_score is not none else "N/A" }}</div>
+        <div class="label">Silhouette Score</div>
+    </div>
+</div>
+
+{% if analysis.params %}
+<details>
+    <summary><strong>Algorithm Parameters</strong></summary>
+    <table>
+        <thead>
+            <tr>
+                <th>Parameter</th>
+                <th>Value</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for key, val in analysis.params.items() %}
+            <tr>
+                <td>{{ key }}</td>
+                <td>{{ val }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</details>
+{% endif %}
+
+<!-- Cluster profiles -->
+<details open>
+    <summary><strong>Cluster Profiles</strong></summary>
+    <div class="cluster-profiles">
+        {% for profile in analysis.cluster_profiles %}
+        <div class="cluster-profile">
+            <h4>Cluster {{ profile.cluster_id }}
+                {% if profile.cluster_id == -1 %}(Noise){% endif %}
+                — {{ profile.size }} samples ({{ profile.percentage }}%)
+            </h4>
+            {% if profile.top_features %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Feature</th>
+                        <th>Cluster Mean</th>
+                        <th>Overall Mean</th>
+                        <th>Deviation</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for feat in profile.top_features %}
+                    <tr>
+                        <td>{{ feat.feature }}</td>
+                        <td>{{ feat.cluster_mean }}</td>
+                        <td>{{ feat.overall_mean }}</td>
+                        <td>{{ feat.z_deviation }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</details>

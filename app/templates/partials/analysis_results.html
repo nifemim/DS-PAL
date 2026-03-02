@@ -1,32 +1,24 @@
-<h2>{{ analysis.title }}</h2>
-
-{% if insights_enabled %}
-<article id="cluster-insights"
-         hx-get="/api/analysis/{{ analysis.id }}/insights"
-         hx-trigger="load"
-         hx-swap="innerHTML">
-    {% include "partials/skeleton.html" %}
-</article>
-{% endif %}
-
-<!-- Save button -->
-<div style="margin-top: 1rem; text-align: center;">
-    <button hx-post="/api/analysis/{{ analysis.id }}/save"
+<div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+    <h2 style="margin-bottom: 0;">{{ analysis.title }}</h2>
+    <button class="outline" style="margin-bottom: 0; width: auto;"
+            hx-post="/api/analysis/{{ analysis.id }}/save"
             hx-target="#save-status"
             hx-swap="innerHTML">
         Save Analysis
     </button>
-    <div id="save-status" style="margin-top: 0.5rem;"></div>
+    <span id="save-status"></span>
 </div>
 
 <!-- Tab bar -->
 <div class="analysis-tabs" role="tablist" aria-label="Analysis sections">
     <button role="tab" aria-selected="false" aria-controls="tab-preprocessing"
             data-tab="preprocessing" class="tab-btn">Pre-Processing</button>
-    <button role="tab" aria-selected="true" aria-controls="tab-eda"
-            data-tab="eda" class="tab-btn active">EDA</button>
+    <button role="tab" aria-selected="false" aria-controls="tab-eda"
+            data-tab="eda" class="tab-btn">EDA</button>
+    <button role="tab" aria-selected="true" aria-controls="tab-clusters"
+            data-tab="clusters" class="tab-btn active">Cluster Descriptions</button>
     <button role="tab" aria-selected="false" aria-controls="tab-segmentation"
-            data-tab="segmentation" class="tab-btn">Segmentation</button>
+            data-tab="segmentation" class="tab-btn">Cluster Plots</button>
 </div>
 
 <!-- Tab panels — all rendered inline, toggled via JS -->
@@ -34,8 +26,12 @@
     {% include "partials/section_preprocessing.html" %}
 </div>
 
-<div id="tab-eda" role="tabpanel" class="tab-panel">
+<div id="tab-eda" role="tabpanel" class="tab-panel" style="display: none;">
     {% include "partials/section_eda.html" %}
+</div>
+
+<div id="tab-clusters" role="tabpanel" class="tab-panel">
+    {% include "partials/section_clusters.html" %}
 </div>
 
 <div id="tab-segmentation" role="tabpanel" class="tab-panel" style="display: none;">

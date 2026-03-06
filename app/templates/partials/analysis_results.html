@@ -1,7 +1,7 @@
 <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
     <h2 style="margin-bottom: 0;">{{ analysis.title }}</h2>
     <button class="outline" style="margin-bottom: 0; width: auto;"
-            hx-post="/api/analysis/{{ analysis.id }}/save"
+            hx-post="/api/analysis/{{ analysis_id }}/save"
             hx-target="#save-status"
             hx-swap="innerHTML">
         Save Analysis

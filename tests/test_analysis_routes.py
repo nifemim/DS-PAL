@@ -38,91 +38,66 @@ class TestRunAnalysisRedirect:
     """Tests for POST /api/analyze redirect behavior."""
 
     @pytest.mark.asyncio
-    async def test_run_analysis_redirects_to_analysis_page(self, mock_analysis, mock_charts):
-        """POST /api/analyze returns 303 redirect to /analysis/{id} on success."""
-        with patch("app.routers.analysis.download_dataset", new_callable=AsyncMock) as mock_dl, \
-             patch("app.routers.analysis.load_dataframe") as mock_load, \
-             patch("app.routers.analysis.analysis_engine") as mock_engine, \
-             patch("app.routers.analysis.generate_all") as mock_gen:
-            mock_dl.return_value = "/tmp/fake.csv"
-            mock_load.return_value = MagicMock()
-            mock_engine.run.return_value = mock_analysis
-            mock_gen.return_value = mock_charts
+    async def test_run_analysis_redirects_immediately(self):
+        """POST /api/analyze returns 303 redirect to /analysis/{id} immediately."""
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.post(
+                "/api/analyze",
+                data={
+                    "source": "test",
+                    "dataset_id": "iris",
+                    "name": "Iris",
+                    "url": "",
+                    "algorithm": "kmeans",
+                },
+                follow_redirects=False,
+            )
 
-            transport = ASGITransport(app=app)
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
-                resp = await client.post(
-                    "/api/analyze",
-                    data={
-                        "source": "test",
-                        "dataset_id": "iris",
-                        "name": "Iris",
-                        "url": "",
-                        "algorithm": "kmeans",
-                    },
-                    follow_redirects=False,
-                )
-
-            assert resp.status_code == 303
-            assert resp.headers["location"] == "/analysis/test-analysis-123"
+        assert resp.status_code == 303
+        assert resp.headers["location"].startswith("/analysis/")
 
     @pytest.mark.asyncio
-    async def test_run_analysis_stores_in_pending(self, mock_analysis, mock_charts):
-        """POST /api/analyze stores analysis in app.state.pending_analyses."""
-        with patch("app.routers.analysis.download_dataset", new_callable=AsyncMock) as mock_dl, \
-             patch("app.routers.analysis.load_dataframe") as mock_load, \
-             patch("app.routers.analysis.analysis_engine") as mock_engine, \
-             patch("app.routers.analysis.generate_all") as mock_gen:
-            mock_dl.return_value = "/tmp/fake.csv"
-            mock_load.return_value = MagicMock()
-            mock_engine.run.return_value = mock_analysis
-            mock_gen.return_value = mock_charts
+    async def test_run_analysis_stores_in_pending(self):
+        """POST /api/analyze creates an entry in pending_analyses."""
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.post(
+                "/api/analyze",
+                data={
+                    "source": "test",
+                    "dataset_id": "iris",
+                    "name": "Iris",
+                    "url": "",
+                    "algorithm": "kmeans",
+                },
+                follow_redirects=False,
+            )
 
-            transport = ASGITransport(app=app)
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
-                await client.post(
-                    "/api/analyze",
-                    data={
-                        "source": "test",
-                        "dataset_id": "iris",
-                        "name": "Iris",
-                        "url": "",
-                        "algorithm": "kmeans",
-                    },
-                    follow_redirects=False,
-                )
-
-            assert "test-analysis-123" in app.state.pending_analyses
-            entry = app.state.pending_analyses["test-analysis-123"]
-            assert entry["analysis"] is mock_analysis
-            assert entry["charts"] is mock_charts
-            assert "created_at" in entry
+        # Extract analysis ID from redirect location
+        location = resp.headers["location"]
+        analysis_id = location.split("/analysis/")[1]
+        assert analysis_id in app.state.pending_analyses
+        entry = app.state.pending_analyses[analysis_id]
+        assert entry["status"] in ("running", "done", "error")
+        assert "created_at" in entry
 
     @pytest.mark.asyncio
-    async def test_run_analysis_error_redirects_to_dataset(self):
-        """POST /api/analyze redirects back to dataset page with ?error= on failure."""
-        with patch("app.routers.analysis.download_dataset", new_callable=AsyncMock) as mock_dl:
-            mock_dl.side_effect = Exception("File not found")
+    async def test_detail_returns_loading_for_running(self):
+        """Detail endpoint returns loading partial while analysis is running."""
+        app.state.pending_analyses["running-123"] = {
+            "status": "running",
+            "dataset_name": "Iris",
+            "algorithm": "kmeans",
+            "created_at": time.time(),
+        }
 
-            transport = ASGITransport(app=app)
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
-                resp = await client.post(
-                    "/api/analyze",
-                    data={
-                        "source": "test",
-                        "dataset_id": "iris",
-                        "name": "Iris",
-                        "url": "http://example.com/iris.csv",
-                        "algorithm": "kmeans",
-                    },
-                    follow_redirects=False,
-                )
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get("/api/analysis/running-123/detail")
 
-            assert resp.status_code == 303
-            location = resp.headers["location"]
-            assert location.startswith("/dataset/test/iris")
-            assert "error=" in location
-            assert "File%20not%20found" in location
+        assert resp.status_code == 200
+        assert "Analyzing" in resp.text
 
 
 class TestUnifiedDetailEndpoint:

@@ -2,6 +2,7 @@
 import asyncio
 import logging
 import time
+import uuid
 from typing import List, Optional
 
 from urllib.parse import quote
@@ -21,6 +22,54 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["analysis"])
 
 
+async def _run_analysis_task(app, analysis_id: str, params: dict):
+    """Background task: download, analyze, generate charts."""
+    try:
+        file_path = await download_dataset(params["source"], params["dataset_id"], params["url"])
+        df = load_dataframe(file_path)
+
+        loop = asyncio.get_event_loop()
+        analysis = await loop.run_in_executor(
+            None,
+            lambda: analysis_engine.run(
+                df=df,
+                dataset_name=params["name"] or params["dataset_id"],
+                dataset_source=params["source"],
+                dataset_id=params["dataset_id"],
+                dataset_url=params["url"],
+                algorithm=params["algorithm"],
+                n_clusters=params["n_clusters"],
+                columns=params["columns"],
+                categorical_columns=params["categorical_columns"],
+                contamination=params["contamination"],
+            ),
+        )
+
+        analysis.dataset_description = params.get("dataset_description", "")
+        charts = await loop.run_in_executor(None, lambda: generate_all(analysis))
+
+        # Replace the pending entry with completed results
+        app.state.pending_analyses[analysis_id] = {
+            "analysis": analysis,
+            "charts": charts,
+            "created_at": time.time(),
+            "status": "done",
+        }
+        logger.info("Analysis %s completed", analysis_id)
+
+    except Exception as e:
+        logger.error("Analysis %s failed: %s", analysis_id, e, exc_info=True)
+        app.state.pending_analyses[analysis_id] = {
+            "status": "error",
+            "error": str(e)[:200],
+            "created_at": time.time(),
+            "source": params["source"],
+            "dataset_id": params["dataset_id"],
+            "name": params["name"],
+            "url": params["url"],
+        }
+
+
 @router.post("/analyze")
 async def run_analysis(
     request: Request,
@@ -35,69 +84,73 @@ async def run_analysis(
     contamination: float = Form(0.05),
     dataset_description: str = Form(""),
 ):
-    """Run ML analysis on a dataset. Returns HTMX partial with results."""
-    try:
-        # Download/load dataset
-        file_path = await download_dataset(source, dataset_id, url)
-        df = load_dataframe(file_path)
+    """Start analysis in background and redirect to loading page immediately."""
+    analysis_id = str(uuid.uuid4())
+    app = request.app
 
-        # Run analysis in executor to avoid blocking the event loop
-        loop = asyncio.get_event_loop()
-        analysis = await loop.run_in_executor(
-            None,
-            lambda: analysis_engine.run(
-                df=df,
-                dataset_name=name or dataset_id,
-                dataset_source=source,
-                dataset_id=dataset_id,
-                dataset_url=url,
-                algorithm=algorithm,
-                n_clusters=n_clusters if n_clusters and n_clusters >= 2 else None,
-                columns=columns,
-                categorical_columns=categorical_columns if categorical_columns else None,
-                contamination=contamination,
-            ),
-        )
+    # Store as "running" so the detail endpoint knows it's in progress
+    app.state.pending_analyses[analysis_id] = {
+        "status": "running",
+        "dataset_name": name or dataset_id,
+        "algorithm": algorithm,
+        "created_at": time.time(),
+    }
 
-        # Attach user-provided description (used by LLM prompt, not ML pipeline)
-        analysis.dataset_description = dataset_description
+    _evict_old_pending(app)
 
-        # Generate visualizations
-        charts = await loop.run_in_executor(None, lambda: generate_all(analysis))
+    # Kick off analysis in background (store ref to prevent GC)
+    task = asyncio.create_task(_run_analysis_task(app, analysis_id, {
+        "source": source,
+        "dataset_id": dataset_id,
+        "name": name,
+        "url": url,
+        "algorithm": algorithm,
+        "n_clusters": n_clusters if n_clusters and n_clusters >= 2 else None,
+        "columns": columns,
+        "categorical_columns": categorical_columns if categorical_columns else None,
+        "contamination": contamination,
+        "dataset_description": dataset_description,
+    }))
+    app.state.pending_analyses[analysis_id]["task"] = task
 
-        # Store in pending analyses for save-later flow
-        app = request.app
-        app.state.pending_analyses[analysis.id] = {
-            "analysis": analysis,
-            "charts": charts,
-            "created_at": time.time(),
-        }
-
-        # Evict old entries (TTL-based, 1 hour)
-        _evict_old_pending(app)
-
-        return RedirectResponse(f"/analysis/{analysis.id}", status_code=303)
-
-    except Exception as e:
-        logger.error("Analysis failed: %s", e, exc_info=True)
-        error_msg = quote(str(e)[:200])
-        return RedirectResponse(
-            f"/dataset/{source}/{dataset_id}?name={quote(name)}&url={quote(url)}&error={error_msg}",
-            status_code=303,
-        )
+    return RedirectResponse(f"/analysis/{analysis_id}", status_code=303)
 
 
 @router.get("/analysis/{analysis_id}/detail")
 async def analysis_detail(request: Request, analysis_id: str):
     """Unified detail endpoint: checks pending first, then saved."""
-    # Check pending first
     pending = request.app.state.pending_analyses.get(analysis_id)
+
     if pending:
+        status = pending.get("status", "done")
+
+        # Still running — return loading partial that auto-polls
+        if status == "running":
+            return templates.TemplateResponse(
+                "partials/analysis_loading.html",
+                {
+                    "request": request,
+                    "analysis_id": analysis_id,
+                    "dataset_name": pending.get("dataset_name", ""),
+                    "algorithm": pending.get("algorithm", ""),
+                },
+            )
+
+        # Failed — show error
+        if status == "error":
+            error_msg = pending.get("error", "Analysis failed")
+            return templates.TemplateResponse(
+                "partials/error.html",
+                {"request": request, "message": f"Analysis failed: {error_msg}"},
+            )
+
+        # Done — render results (no polling element, so polling stops)
         return templates.TemplateResponse(
             "partials/analysis_results.html",
             {
                 "request": request,
                 "analysis": pending["analysis"],
+                "analysis_id": analysis_id,
                 "charts": pending["charts"],
                 "insights_enabled": settings.insights_enabled,
             },

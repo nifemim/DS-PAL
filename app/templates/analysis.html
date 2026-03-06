@@ -4,9 +4,7 @@
 <div id="analysis-detail"
      hx-get="/api/analysis/{{ analysis_id }}/detail"
      hx-trigger="load"
-     hx-indicator="#analysis-spinner">
-</div>
-<div id="analysis-spinner" class="htmx-indicator">
+     hx-swap="innerHTML">
     {% include "partials/skeleton.html" %}
 </div>
 {% endblock %}

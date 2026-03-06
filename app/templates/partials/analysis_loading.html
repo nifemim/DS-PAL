@@ -1,0 +1,13 @@
+<div class="analysis-loading"
+     hx-get="/api/analysis/{{ analysis_id }}/detail"
+     hx-trigger="every 2s"
+     hx-target="#analysis-detail"
+     hx-swap="innerHTML">
+
+    <div style="text-align: center; padding: 4rem 1rem;">
+        <div aria-busy="true" style="margin-bottom: 2rem;"></div>
+        <h3>Analyzing {{ dataset_name }}...</h3>
+        <p>Running <strong>{{ algorithm|upper }}</strong> clustering analysis.</p>
+        <p><small>This may take a few seconds depending on the dataset size.</small></p>
+    </div>
+</div>

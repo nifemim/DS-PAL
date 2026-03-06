@@ -1,9 +1,18 @@
 """Tests for dataset loader content validation and download routing."""
+import io
+import zipfile
+
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 from pathlib import Path
 
-from app.services.dataset_loader import _validate_content, download_dataset
+from app.services.dataset_loader import (
+    _validate_content,
+    _extract_zip,
+    download_dataset,
+    load_dataframe,
+    MAX_FILE_BYTES,
+)
 from app.services.providers.datagov_provider import _is_direct_download
 
 
@@ -314,3 +323,202 @@ class TestDirectDownloadFilter:
 
     def test_arcgis_hub_not_direct(self):
         assert _is_direct_download("https://hub.arcgis.com/datasets/abc123") is False
+
+
+def _make_zip(entries: dict[str, bytes]) -> bytes:
+    """Helper to create a zip file in memory from {name: content} dict."""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        for name, content in entries.items():
+            zf.writestr(name, content)
+    return buf.getvalue()
+
+
+class TestExtractZip:
+    """Tests for _extract_zip() secure extraction."""
+
+    def test_valid_zip_extracts_and_returns_largest(self, tmp_path):
+        content = _make_zip({
+            "small.csv": b"a,b\n1,2\n",
+            "large.csv": b"a,b\n" + b"1,2\n" * 100,
+        })
+        result = _extract_zip(content, tmp_path)
+        assert result.name == "large.csv"
+        assert result.exists()
+
+    def test_path_traversal_flattened_safely(self, tmp_path):
+        content = _make_zip({"../../evil.csv": b"a,b\n1,2\n"})
+        result = _extract_zip(content, tmp_path)
+        # Should extract as "evil.csv" inside cache_dir, not traverse
+        assert result.name == "evil.csv"
+        assert result.parent.resolve() == tmp_path.resolve()
+
+    def test_deeply_nested_traversal_flattened(self, tmp_path):
+        content = _make_zip({"../../../etc/passwd.csv": b"a,b\n1,2\n"})
+        result = _extract_zip(content, tmp_path)
+        assert result.name == "passwd.csv"
+        assert result.parent.resolve() == tmp_path.resolve()
+
+    def test_oversized_entry_raises(self, tmp_path):
+        content = _make_zip({"big.csv": b"x" * 200})
+        with patch("app.services.dataset_loader.MAX_FILE_BYTES", 100):
+            with pytest.raises(ValueError, match="exceeds"):
+                _extract_zip(content, tmp_path)
+
+    def test_oversized_entry_cleans_up(self, tmp_path):
+        """Partial and previously extracted files should be cleaned up on error."""
+        content = _make_zip({
+            "first.csv": b"a,b\n1,2\n",
+            "second.csv": b"x" * 200,
+        })
+        with patch("app.services.dataset_loader.MAX_FILE_BYTES", 100):
+            with pytest.raises(ValueError, match="exceeds"):
+                _extract_zip(content, tmp_path)
+        # first.csv should have been cleaned up
+        assert not (tmp_path / "first.csv").exists()
+
+    def test_no_data_files_raises(self, tmp_path):
+        content = _make_zip({"readme.txt": b"hello"})
+        with pytest.raises(ValueError, match="No supported data files"):
+            _extract_zip(content, tmp_path)
+
+    def test_macosx_entries_skipped(self, tmp_path):
+        content = _make_zip({
+            "__MACOSX/._data.csv": b"resource fork junk",
+            "data.csv": b"a,b\n1,2\n",
+        })
+        result = _extract_zip(content, tmp_path)
+        assert result.name == "data.csv"
+        assert not (tmp_path / "._data.csv").exists()
+
+    def test_dot_files_skipped(self, tmp_path):
+        content = _make_zip({
+            ".hidden.csv": b"a,b\n1,2\n",
+            "visible.csv": b"a,b\n1,2\n",
+        })
+        result = _extract_zip(content, tmp_path)
+        assert result.name == "visible.csv"
+
+    def test_case_insensitive_extension(self, tmp_path):
+        content = _make_zip({"DATA.CSV": b"a,b\n1,2\n"})
+        result = _extract_zip(content, tmp_path)
+        assert result.name == "DATA.CSV"
+
+
+class TestLoadDataframe:
+    """Tests for load_dataframe() max_rows handling."""
+
+    def test_json_max_rows_none_no_crash(self, tmp_path):
+        import json
+        data = [{"a": i, "b": i * 2} for i in range(10)]
+        json_file = tmp_path / "data.json"
+        json_file.write_text(json.dumps(data))
+        df = load_dataframe(json_file, max_rows=None)
+        assert len(df) == 10
+
+    def test_parquet_max_rows_none_no_crash(self, tmp_path):
+        import pandas as pd
+        df_in = pd.DataFrame({"a": range(10), "b": range(10)})
+        pq_file = tmp_path / "data.parquet"
+        df_in.to_parquet(pq_file)
+        df = load_dataframe(pq_file, max_rows=None)
+        assert len(df) == 10
+
+    def test_max_rows_zero_returns_empty(self, tmp_path):
+        csv_file = tmp_path / "data.csv"
+        csv_file.write_text("a,b\n1,2\n3,4\n")
+        df = load_dataframe(csv_file, max_rows=0)
+        assert len(df) == 0
+
+    def test_max_rows_truncates_parquet(self, tmp_path):
+        import pandas as pd
+        df_in = pd.DataFrame({"a": range(20), "b": range(20)})
+        pq_file = tmp_path / "data.parquet"
+        df_in.to_parquet(pq_file)
+        df = load_dataframe(pq_file, max_rows=5)
+        assert len(df) == 5
+
+    def test_max_rows_truncates_json(self, tmp_path):
+        import json
+        data = [{"a": i} for i in range(20)]
+        json_file = tmp_path / "data.json"
+        json_file.write_text(json.dumps(data))
+        df = load_dataframe(json_file, max_rows=5)
+        assert len(df) == 5
+
+
+class TestOpenMLArffRemoval:
+    """Tests for _download_openml() ARFF fallback removal."""
+
+    @pytest.mark.asyncio
+    async def test_failed_parquet_raises_even_with_arff_url(self, tmp_path):
+        """When parquet fails, should NOT fall back to ARFF URL."""
+        from app.services.dataset_loader import _download_openml
+
+        # Mock metadata response with an ARFF URL in ds_info
+        meta_response = MagicMock()
+        meta_response.status_code = 200
+        meta_response.raise_for_status = MagicMock()
+        meta_response.json.return_value = {
+            "data_set_description": {
+                "name": "iris",
+                "url": "https://www.openml.org/data/download/61/iris.arff",
+            }
+        }
+
+        # Mock parquet download failure (404)
+        parquet_response = MagicMock()
+        parquet_response.status_code = 404
+        parquet_response.content = b""
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(side_effect=[parquet_response])
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("httpx.AsyncClient") as mock_cls:
+            # First client for metadata, second for parquet attempt
+            meta_client = AsyncMock()
+            meta_client.get = AsyncMock(return_value=meta_response)
+            meta_client.__aenter__ = AsyncMock(return_value=meta_client)
+            meta_client.__aexit__ = AsyncMock(return_value=False)
+
+            mock_cls.side_effect = [meta_client, mock_client]
+
+            with pytest.raises(ValueError, match="ARFF format"):
+                await _download_openml("61", tmp_path)
+
+    @pytest.mark.asyncio
+    async def test_successful_parquet_still_works(self, tmp_path):
+        """When parquet succeeds, should return the parquet file."""
+        from app.services.dataset_loader import _download_openml
+
+        meta_response = MagicMock()
+        meta_response.status_code = 200
+        meta_response.raise_for_status = MagicMock()
+        meta_response.json.return_value = {
+            "data_set_description": {"name": "iris"}
+        }
+
+        # Valid parquet-like content (just needs to pass _validate_content)
+        parquet_response = MagicMock()
+        parquet_response.status_code = 200
+        parquet_response.content = b"PAR1" + b"\x00" * 100
+        parquet_response.raise_for_status = MagicMock()
+
+        with patch("httpx.AsyncClient") as mock_cls:
+            meta_client = AsyncMock()
+            meta_client.get = AsyncMock(return_value=meta_response)
+            meta_client.__aenter__ = AsyncMock(return_value=meta_client)
+            meta_client.__aexit__ = AsyncMock(return_value=False)
+
+            parquet_client = AsyncMock()
+            parquet_client.get = AsyncMock(return_value=parquet_response)
+            parquet_client.__aenter__ = AsyncMock(return_value=parquet_client)
+            parquet_client.__aexit__ = AsyncMock(return_value=False)
+
+            mock_cls.side_effect = [meta_client, parquet_client]
+
+            result = await _download_openml("61", tmp_path)
+            assert result.name == "data.parquet"
+            assert result.exists()

@@ -17,6 +17,8 @@ from app.models.schemas import DatasetPreview, ColumnInfo
 logger = logging.getLogger(__name__)
 
 MAX_FILE_BYTES = settings.max_file_size_mb * 1024 * 1024
+SUPPORTED_DATA_EXTENSIONS = (".csv", ".json", ".parquet", ".xlsx", ".tsv")
+MAX_TOTAL_EXTRACT = MAX_FILE_BYTES * 3  # cap total decompressed output from zip
 
 
 def _sanitize_id(dataset_id: str) -> str:
@@ -220,26 +222,10 @@ async def _download_openml(dataset_id: str, cache_dir: Path) -> Path:
             logger.info("Downloaded OpenML %s to %s (%d bytes)", dataset_id, file_path, len(resp.content))
             return file_path
 
-        # Fall back to ARFF download URL from metadata
-        file_url = ds_info.get("url", "")
-        if file_url:
-            resp = await client.get(file_url)
-            resp.raise_for_status()
-            _validate_content(resp.content, file_url)
-            if len(resp.content) > MAX_FILE_BYTES:
-                raise ValueError(
-                    f"Dataset too large ({len(resp.content) / 1024 / 1024:.1f}MB). "
-                    f"Maximum is {settings.max_file_size_mb}MB."
-                )
-            # Save as CSV — many ARFF files are CSV-compatible
-            file_path = cache_dir / "data.csv"
-            file_path.write_bytes(resp.content)
-            logger.info("Downloaded OpenML %s (ARFF fallback) to %s", dataset_id, file_path)
-            return file_path
-
     raise ValueError(
         f"Could not download OpenML dataset '{dataset_id}'. "
-        "No downloadable file found."
+        "Only parquet-format datasets are supported. "
+        "This dataset may only be available in ARFF format."
     )
 
 
@@ -290,26 +276,67 @@ async def _download_zenodo(dataset_id: str, cache_dir: Path) -> Path:
 
 
 def _extract_zip(content: bytes, cache_dir: Path) -> Path:
-    """Extract a zip file and return path to the data file inside."""
+    """Extract a zip file securely and return path to the data file."""
     with zipfile.ZipFile(io.BytesIO(content)) as zf:
-        # Find data files in the zip
-        data_exts = (".csv", ".json", ".parquet", ".xlsx", ".tsv")
-        data_files = [
-            f for f in zf.namelist()
-            if f.endswith(data_exts)
-            and not f.startswith("__MACOSX")
+        candidates = [
+            info for info in zf.infolist()
+            if not info.is_dir()
+            and not info.filename.startswith("__MACOSX")
+            and info.filename.lower().endswith(SUPPORTED_DATA_EXTENSIONS)
         ]
 
-        if not data_files:
+        if not candidates:
             raise ValueError("No supported data files found in zip archive")
 
-        # Extract all data files
-        for f in data_files:
-            zf.extract(f, cache_dir)
+        extracted = []
+        total_bytes = 0
 
-        # Return the largest
-        extracted = [cache_dir / f for f in data_files]
-        return max(extracted, key=lambda f: f.stat().st_size)
+        for info in candidates:
+            # Flatten to just the filename (strips ../ and subdirs)
+            safe_name = Path(info.filename).name
+            if not safe_name or safe_name.startswith("."):
+                continue
+
+            dest = (cache_dir / safe_name).resolve()
+            if not dest.is_relative_to(cache_dir.resolve()):
+                raise ValueError(
+                    f"Zip entry '{info.filename}' would extract outside target directory"
+                )
+
+            # Stream to disk with runtime byte counting
+            member_bytes = 0
+            try:
+                with zf.open(info) as src, open(dest, "wb") as out:
+                    while True:
+                        chunk = src.read(65536)
+                        if not chunk:
+                            break
+                        member_bytes += len(chunk)
+                        total_bytes += len(chunk)
+                        if member_bytes > MAX_FILE_BYTES:
+                            raise ValueError(
+                                f"File '{safe_name}' in zip exceeds "
+                                f"{settings.max_file_size_mb}MB limit"
+                            )
+                        if total_bytes > MAX_TOTAL_EXTRACT:
+                            raise ValueError(
+                                "Total decompressed zip size exceeds limit"
+                            )
+                        out.write(chunk)
+            except ValueError:
+                # Clean up partial file on size limit errors
+                dest.unlink(missing_ok=True)
+                # Clean up any previously extracted files
+                for f in extracted:
+                    f.unlink(missing_ok=True)
+                raise
+
+            extracted.append(dest)
+
+        if not extracted:
+            raise ValueError("No valid data files could be extracted")
+
+        return max(extracted, key=lambda p: p.stat().st_size)
 
 
 def detect_sheets(file_path: Path) -> list[dict]:
@@ -402,11 +429,11 @@ def load_dataframe(
                     df = pd.json_normalize(raw)
             else:
                 raise ValueError("JSON file structure not supported for tabular data.")
-        if max_rows and len(df) > max_rows:
+        if max_rows is not None and len(df) > max_rows:
             df = df.head(max_rows)
     elif suffix == ".parquet":
         df = pd.read_parquet(file_path)
-        if len(df) > max_rows:
+        if max_rows is not None and len(df) > max_rows:
             df = df.head(max_rows)
     elif suffix in (".xlsx", ".xls"):
         df = pd.read_excel(file_path, sheet_name=sheet_name or 0, nrows=max_rows)

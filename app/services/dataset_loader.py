@@ -383,8 +383,26 @@ def load_dataframe(
     elif suffix == ".csv":
         df = pd.read_csv(file_path, nrows=max_rows, on_bad_lines="skip")
     elif suffix == ".json":
-        df = pd.read_json(file_path)
-        if len(df) > max_rows:
+        import json as json_mod
+        try:
+            df = pd.read_json(file_path)
+        except ValueError:
+            # Nested or irregular JSON — try json_normalize
+            with open(file_path) as f:
+                raw = json_mod.load(f)
+            if isinstance(raw, list):
+                df = pd.json_normalize(raw)
+            elif isinstance(raw, dict):
+                # Look for the first list value (common API response pattern)
+                for v in raw.values():
+                    if isinstance(v, list):
+                        df = pd.json_normalize(v)
+                        break
+                else:
+                    df = pd.json_normalize(raw)
+            else:
+                raise ValueError("JSON file structure not supported for tabular data.")
+        if max_rows and len(df) > max_rows:
             df = df.head(max_rows)
     elif suffix == ".parquet":
         df = pd.read_parquet(file_path)

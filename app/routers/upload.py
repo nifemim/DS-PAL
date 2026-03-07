@@ -19,7 +19,7 @@ from app.services.dataset_loader import (
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["upload"])
 
-ALLOWED_EXTENSIONS = {".csv", ".json", ".parquet", ".xlsx", ".xls"}
+ALLOWED_EXTENSIONS = {".csv", ".tsv", ".json", ".parquet", ".xlsx", ".xls"}
 
 
 @router.post("/dataset/upload")
@@ -31,7 +31,7 @@ async def upload_dataset(request: Request, file: UploadFile):
         ext = Path(original_name).suffix.lower()
         if ext not in ALLOWED_EXTENSIONS:
             raise ValueError(
-                "Unsupported format. Please upload CSV, Excel, JSON, or Parquet."
+                "Unsupported format. Please upload CSV, TSV, Excel, JSON, or Parquet."
             )
 
         # 2. Read file content, reject empty and oversized files
@@ -54,10 +54,7 @@ async def upload_dataset(request: Request, file: UploadFile):
         # 4. Save to cache
         upload_id, file_path = save_upload(content, ext)
 
-        # 5. Verify file is loadable
-        load_dataframe(file_path)
-
-        # 6. Check for multi-sheet Excel files
+        # 5. Check for multi-sheet Excel files (before validation)
         display_name = Path(original_name).stem
         if ext in (".xlsx", ".xls"):
             sheets = detect_sheets(file_path)
@@ -66,6 +63,9 @@ async def upload_dataset(request: Request, file: UploadFile):
                     url=f"/dataset/upload/{upload_id}/sheets?name={quote(display_name)}",
                     status_code=303,
                 )
+
+        # 6. Verify file is loadable (single-sheet only)
+        load_dataframe(file_path)
 
         # 7. Redirect to dataset page
         return RedirectResponse(

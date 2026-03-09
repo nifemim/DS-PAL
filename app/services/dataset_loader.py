@@ -344,6 +344,35 @@ def detect_sheets(file_path: Path) -> list[dict]:
 
     Returns list of dicts with keys: name, num_rows, num_columns, columns.
     """
+    suffix = file_path.suffix.lower()
+
+    # openpyxl read_only mode for .xlsx — fast metadata without loading all cells
+    if suffix == ".xlsx":
+        import openpyxl
+        wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+        sheets = []
+        try:
+            for name in wb.sheetnames:
+                ws = wb[name]
+                columns = []
+                for row in ws.iter_rows(min_row=1, max_row=1, values_only=True):
+                    columns = [
+                        str(c) for c in row
+                        if c is not None and str(c).strip()
+                    ]
+                # max_row is approximate in read_only mode (may over-count trailing empties)
+                num_rows = max(0, (ws.max_row or 1) - 1)
+                sheets.append({
+                    "name": name,
+                    "num_rows": num_rows,
+                    "num_columns": len(columns),
+                    "columns": columns,
+                })
+        finally:
+            wb.close()
+        return sheets
+
+    # Fallback for .xls — openpyxl doesn't support legacy format
     import pandas as pd
     xls = pd.ExcelFile(file_path)
     sheets = []
@@ -373,12 +402,23 @@ def join_sheets(
 
     for config in sheet_configs[1:]:
         right = pd.read_excel(file_path, sheet_name=config["name"])
-        result = result.merge(
-            right,
-            on=config["join_key"],
-            how=config.get("join_type", "inner"),
-            suffixes=("", f"_{config['name']}"),
-        )
+        join_key = config.get("join_key", "")
+        try:
+            result = result.merge(
+                right,
+                on=join_key,
+                how=config.get("join_type", "inner"),
+                suffixes=("", f"_{config['name']}"),
+            )
+        except (KeyError, pd.errors.MergeError) as e:
+            raise ValueError(
+                f"Cannot join on column '{join_key}' with sheet "
+                f"'{config['name']}': {e}. "
+                f"Available columns in left table: "
+                f"{', '.join(result.columns[:20])}. "
+                f"Available columns in '{config['name']}': "
+                f"{', '.join(right.columns[:20])}."
+            ) from e
 
     return result
 
@@ -440,6 +480,12 @@ def load_dataframe(
     else:
         # Try CSV as fallback
         df = pd.read_csv(file_path, nrows=max_rows, on_bad_lines="skip")
+
+    if df.empty and not max_rows == 0:
+        raise ValueError(
+            "The file contains no readable data rows. "
+            "It may be malformed or in an unsupported encoding."
+        )
 
     logger.info("Loaded %s: %d rows x %d columns", file_path.name, len(df), len(df.columns))
     return df

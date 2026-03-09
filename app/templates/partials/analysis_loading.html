@@ -2,7 +2,9 @@
      hx-get="/api/analysis/{{ analysis_id }}/detail"
      hx-trigger="every 2s"
      hx-target="#analysis-detail"
-     hx-swap="innerHTML">
+     hx-swap="innerHTML"
+     data-started="{{ now }}"
+     id="analysis-polling">
 
     <div style="text-align: center; padding: 4rem 1rem;">
         <div aria-busy="true" style="margin-bottom: 2rem;"></div>
@@ -11,3 +13,25 @@
         <p><small>This may take a few seconds depending on the dataset size.</small></p>
     </div>
 </div>
+
+<script>
+// Stop polling after 3 minutes and show timeout error
+(function() {
+    var start = Date.now();
+    var timeout = 180000; // 3 minutes
+    var el = document.getElementById("analysis-polling");
+    if (!el) return;
+    var check = setInterval(function() {
+        if (Date.now() - start > timeout) {
+            clearInterval(check);
+            el.removeAttribute("hx-trigger");
+            el.removeAttribute("hx-get");
+            if (typeof htmx !== "undefined") htmx.process(el);
+            el.innerHTML = '<div style="text-align:center;padding:4rem 1rem;">' +
+                '<h3>Analysis timed out</h3>' +
+                '<p>The analysis is taking too long. This may be due to a large dataset.</p>' +
+                '<p><a href="javascript:history.back()" role="button" class="outline">Go Back</a></p></div>';
+        }
+    }, 5000);
+})();
+</script>

@@ -2,9 +2,7 @@
     {% for chart in charts %}
     <div class="chart-container">
         <h4>{{ chart.title }}</h4>
-        <div data-plotly='{{ chart.plotly_json }}' class="chart-plot">
-            {{ chart.html|safe }}
-        </div>
+        <div data-plotly='{{ chart.plotly_json }}' class="chart-plot"></div>
     </div>
     {% endfor %}
 </div>

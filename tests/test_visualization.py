@@ -29,7 +29,7 @@ def analysis_output():
 def test_scatter_2d(analysis_output):
     chart = scatter_2d(analysis_output)
     assert chart.chart_type == "scatter_2d"
-    assert chart.html
+    assert chart.plotly_json
     assert chart.plotly_json
     data = json.loads(chart.plotly_json)
     assert "data" in data
@@ -39,25 +39,25 @@ def test_scatter_2d(analysis_output):
 def test_scatter_3d(analysis_output):
     chart = scatter_3d(analysis_output)
     assert chart.chart_type == "scatter_3d"
-    assert chart.html
+    assert chart.plotly_json
 
 
 def test_cluster_sizes(analysis_output):
     chart = cluster_sizes(analysis_output)
     assert chart.chart_type == "cluster_sizes"
-    assert chart.html
+    assert chart.plotly_json
 
 
 def test_feature_boxplots(analysis_output):
     chart = feature_boxplots(analysis_output)
     assert chart.chart_type == "feature_boxplots"
-    assert chart.html
+    assert chart.plotly_json
 
 
 def test_correlation_heatmap(analysis_output):
     chart = correlation_heatmap(analysis_output)
     assert chart.chart_type == "correlation_heatmap"
-    assert chart.html
+    assert chart.plotly_json
     data = json.loads(chart.plotly_json)
     assert data["data"][0]["type"] == "heatmap"
 
@@ -65,19 +65,19 @@ def test_correlation_heatmap(analysis_output):
 def test_silhouette_plot(analysis_output):
     chart = silhouette_plot(analysis_output)
     assert chart.chart_type == "silhouette"
-    assert chart.html
+    assert chart.plotly_json
 
 
 def test_parallel_coordinates(analysis_output):
     chart = parallel_coordinates(analysis_output)
     assert chart.chart_type == "parallel_coordinates"
-    assert chart.html
+    assert chart.plotly_json
 
 
 def test_anomaly_overlay(analysis_output):
     chart = anomaly_overlay(analysis_output)
     assert chart.chart_type == "anomaly_overlay"
-    assert chart.html
+    assert chart.plotly_json
 
 
 def test_generate_all(analysis_output):
@@ -92,7 +92,7 @@ def test_generate_all(analysis_output):
     assert "feature_distributions" in chart_types
 
     for chart in charts:
-        assert chart.html
+        assert chart.plotly_json
         assert chart.plotly_json
         # Verify JSON is valid
         json.loads(chart.plotly_json)

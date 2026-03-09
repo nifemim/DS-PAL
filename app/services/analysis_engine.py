@@ -462,13 +462,17 @@ def detect_anomalies(
     return anomaly_labels, scores
 
 
+MAX_CORR_FEATURES = 30  # Cap correlation matrix to avoid n² explosion
+
+
 def compute_stats(
     numeric_df,
     feature_names: List[str],
 ) -> Tuple[Dict[str, Dict[str, float]], Dict[str, Dict[str, Any]]]:
     """Compute correlation matrix and per-column statistics."""
-    # Correlation matrix
-    corr = numeric_df[feature_names].corr()
+    # Cap features for correlation to avoid n² memory
+    corr_features = feature_names[:MAX_CORR_FEATURES]
+    corr = numeric_df[corr_features].corr()
     corr_dict = {}
     for col in corr.columns:
         corr_dict[col] = {

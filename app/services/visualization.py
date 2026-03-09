@@ -24,14 +24,22 @@ def _to_chart(fig, chart_type: str, title: str) -> ChartData:
         template="plotly_white",
         margin=dict(l=40, r=40, t=50, b=40),
     )
-    html = fig.to_html(include_plotlyjs=False, full_html=False)
     plotly_json = fig.to_json()
     return ChartData(
         chart_type=chart_type,
         title=title,
-        html=html,
         plotly_json=plotly_json,
     )
+
+
+MAX_SCATTER_POINTS = 2000  # Cap scatter plots to limit chart JSON size
+
+
+def _sample_indices(n_total: int, max_points: int, rng) -> "np.ndarray":
+    """Return indices to sample down to max_points if needed."""
+    if n_total <= max_points:
+        return None
+    return rng.choice(n_total, size=max_points, replace=False)
 
 
 def scatter_2d(analysis: AnalysisOutput) -> ChartData:
@@ -40,11 +48,18 @@ def scatter_2d(analysis: AnalysisOutput) -> ChartData:
     coords = np.array(analysis.pca_2d)
     labels = np.array(analysis.cluster_labels)
 
+    # Sample down for large datasets
+    rng = np.random.default_rng(42)
+    idx = _sample_indices(len(coords), MAX_SCATTER_POINTS, rng)
+    if idx is not None:
+        coords = coords[idx]
+        labels = labels[idx]
+
     fig = go.Figure()
     for cluster_id in sorted(set(labels)):
         mask = labels == cluster_id
         name = f"Cluster {cluster_id}" if cluster_id >= 0 else "Noise"
-        fig.add_trace(go.Scatter(
+        fig.add_trace(go.Scattergl(
             x=coords[mask, 0].tolist(),
             y=coords[mask, 1].tolist(),
             mode="markers",
@@ -66,6 +81,13 @@ def scatter_3d(analysis: AnalysisOutput) -> ChartData:
     np, go, px, _ = _get_imports()
     coords = np.array(analysis.pca_3d)
     labels = np.array(analysis.cluster_labels)
+
+    # Sample down for large datasets
+    rng = np.random.default_rng(42)
+    idx = _sample_indices(len(coords), MAX_SCATTER_POINTS, rng)
+    if idx is not None:
+        coords = coords[idx]
+        labels = labels[idx]
 
     fig = go.Figure()
     for cluster_id in sorted(set(labels)):
@@ -235,18 +257,30 @@ def anomaly_overlay(analysis: AnalysisOutput) -> ChartData:
     coords = np.array(analysis.pca_2d)
     anomalies = np.array(analysis.anomaly_labels)
 
-    normal_mask = anomalies == 0
+    # Always keep all anomalies, sample normals if needed
+    rng = np.random.default_rng(42)
     anomaly_mask = anomalies == 1
+    normal_mask = anomalies == 0
+    n_normal = int(normal_mask.sum())
+    max_normal = MAX_SCATTER_POINTS - int(anomaly_mask.sum())
+    if n_normal > max_normal > 0:
+        normal_idx = rng.choice(np.where(normal_mask)[0], size=max_normal, replace=False)
+        anomaly_idx = np.where(anomaly_mask)[0]
+        keep = np.concatenate([normal_idx, anomaly_idx])
+        coords = coords[keep]
+        anomalies = anomalies[keep]
+        normal_mask = anomalies == 0
+        anomaly_mask = anomalies == 1
 
     fig = go.Figure()
-    fig.add_trace(go.Scatter(
+    fig.add_trace(go.Scattergl(
         x=coords[normal_mask, 0].tolist(),
         y=coords[normal_mask, 1].tolist(),
         mode="markers",
         name="Normal",
         marker=dict(size=5, color="steelblue", opacity=0.5),
     ))
-    fig.add_trace(go.Scatter(
+    fig.add_trace(go.Scattergl(
         x=coords[anomaly_mask, 0].tolist(),
         y=coords[anomaly_mask, 1].tolist(),
         mode="markers",

@@ -129,7 +129,6 @@ class AnalysisOutput(BaseModel):
 class ChartData(BaseModel):
     chart_type: str
     title: str
-    html: str
     plotly_json: str
 
 

@@ -501,7 +501,7 @@ class TestFeatureDistributions:
         chart = feature_distributions(result)
         assert chart.chart_type == "feature_distributions"
         assert chart.title == "Feature Distributions"
-        assert len(chart.html) > 0
+        assert len(chart.plotly_json) > 0
         assert len(chart.plotly_json) > 0
 
     def test_feature_distributions_empty_stats(self):

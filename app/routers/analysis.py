@@ -1,5 +1,6 @@
 """Analysis API routes."""
 import asyncio
+import gc
 import logging
 import time
 import uuid
@@ -17,6 +18,8 @@ from app.services import analysis_engine
 from app.services.visualization import generate_all
 from app.services.insights import generate_insights
 from app.services.storage import get_analysis
+
+PENDING_TTL_SECONDS = 600  # 10 minutes
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["analysis"])
@@ -44,6 +47,10 @@ async def _run_analysis_task(app, analysis_id: str, params: dict):
                 contamination=params["contamination"],
             ),
         )
+
+        # Free the raw DataFrame immediately
+        del df
+        gc.collect()
 
         analysis.dataset_description = params.get("dataset_description", "")
         charts = await loop.run_in_executor(None, lambda: generate_all(analysis))
@@ -119,6 +126,7 @@ async def run_analysis(
 @router.get("/analysis/{analysis_id}/detail")
 async def analysis_detail(request: Request, analysis_id: str):
     """Unified detail endpoint: checks pending first, then saved."""
+    _evict_old_pending(request.app)
     pending = request.app.state.pending_analyses.get(analysis_id)
 
     if pending:
@@ -213,12 +221,14 @@ async def _render_insights(request: Request, analysis_id: str, analysis):
 
 
 def _evict_old_pending(app):
-    """Remove pending analyses older than 1 hour."""
+    """Remove pending analyses older than TTL to free memory."""
     now = time.time()
     to_remove = []
     for aid, data in app.state.pending_analyses.items():
         created = data.get("created_at", now)
-        if now - created > 3600:
+        if now - created > PENDING_TTL_SECONDS:
             to_remove.append(aid)
-    for aid in to_remove:
-        del app.state.pending_analyses[aid]
+    if to_remove:
+        for aid in to_remove:
+            del app.state.pending_analyses[aid]
+        gc.collect()

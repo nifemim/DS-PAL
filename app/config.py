@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     maintenance_mode: bool = False
     database_path: str = "ds_pal.db"
     cache_dir: str = ".cache/datasets"
-    max_dataset_rows: int = 10000
+    max_dataset_rows: int = 5000
     max_file_size_mb: int = 50
 
     # Optional API credentials

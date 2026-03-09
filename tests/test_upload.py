@@ -267,6 +267,34 @@ class TestMultiSheetExcel:
             assert resp.status_code == 200
             assert "No shared columns" in resp.text
 
+    def test_join_missing_column_raises_valueerror(self, tmp_path):
+        """join_sheets raises ValueError when join_key column doesn't exist."""
+        sheet_a = pd.DataFrame({"id": [1, 2], "val_a": ["x", "y"]})
+        sheet_b = pd.DataFrame({"id": [1, 2], "val_b": ["p", "q"]})
+        file_path = _create_multi_sheet_excel(tmp_path, {"A": sheet_a, "B": sheet_b})
+
+        configs = [
+            {"name": "A"},
+            {"name": "B", "join_key": "nonexistent", "join_type": "inner"},
+        ]
+        with pytest.raises(ValueError, match="Cannot join on column 'nonexistent'"):
+            join_sheets(file_path, configs)
+
+    def test_join_three_sheets_second_merge_fails(self, tmp_path):
+        """Three-sheet join where the second merge fails raises ValueError."""
+        s1 = pd.DataFrame({"id": [1, 2], "a": [10, 20]})
+        s2 = pd.DataFrame({"id": [1, 2], "b": [30, 40]})
+        s3 = pd.DataFrame({"bad_key": [1, 2], "c": [50, 60]})
+        file_path = _create_multi_sheet_excel(tmp_path, {"S1": s1, "S2": s2, "S3": s3})
+
+        configs = [
+            {"name": "S1"},
+            {"name": "S2", "join_key": "id", "join_type": "inner"},
+            {"name": "S3", "join_key": "id", "join_type": "inner"},
+        ]
+        with pytest.raises(ValueError, match="Cannot join on column 'id'"):
+            join_sheets(file_path, configs)
+
     def test_join_does_not_cap_results(self, tmp_path):
         """join_sheets returns all rows, even when exceeding max_dataset_rows."""
         # Create sheets whose inner join produces more rows than the default cap
@@ -283,3 +311,37 @@ class TestMultiSheetExcel:
 
         # Should get 12,000 rows (each left key matches 2 right rows), not 10,000
         assert len(result) == n * 2
+
+
+class TestDetectSheetsOpenpyxl:
+    """Tests for detect_sheets openpyxl optimization (ticket #73)."""
+
+    def test_xlsx_returns_correct_metadata(self, tmp_path):
+        """detect_sheets returns name, num_rows, num_columns, columns for .xlsx."""
+        orders = pd.DataFrame({"order_id": [1, 2, 3], "amount": [100, 200, 300]})
+        customers = pd.DataFrame({"cust_id": [10, 20], "name": ["A", "B"]})
+        file_path = _create_multi_sheet_excel(tmp_path, {"Orders": orders, "Customers": customers})
+
+        sheets = detect_sheets(file_path)
+
+        assert len(sheets) == 2
+        assert sheets[0]["name"] == "Orders"
+        assert sheets[0]["columns"] == ["order_id", "amount"]
+        assert sheets[0]["num_columns"] == 2
+        assert sheets[1]["name"] == "Customers"
+        assert sheets[1]["columns"] == ["cust_id", "name"]
+
+    def test_xlsx_empty_sheet(self, tmp_path):
+        """detect_sheets handles an empty sheet gracefully."""
+        import openpyxl
+        file_path = tmp_path / "empty.xlsx"
+        wb = openpyxl.Workbook()
+        wb.active.title = "Empty"
+        wb.save(file_path)
+        wb.close()
+
+        sheets = detect_sheets(file_path)
+        assert len(sheets) == 1
+        assert sheets[0]["name"] == "Empty"
+        assert sheets[0]["num_rows"] == 0
+        assert sheets[0]["columns"] == []

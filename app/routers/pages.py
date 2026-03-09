@@ -77,13 +77,21 @@ async def feedback_page(request: Request):
 
 
 @router.get("/dataset/upload/{upload_id}/sheets")
-async def select_sheets_page(request: Request, upload_id: str, name: str = ""):
+async def select_sheets_page(
+    request: Request, upload_id: str, name: str = "", error: str = "",
+):
     """Sheet selection page for multi-sheet Excel files."""
     file_path = await download_dataset("upload", upload_id, "")
     sheets = detect_sheets(file_path)
     return templates.TemplateResponse(
         "select_sheets.html",
-        {"request": request, "upload_id": upload_id, "name": name, "sheets": sheets},
+        {
+            "request": request,
+            "upload_id": upload_id,
+            "name": name,
+            "sheets": sheets,
+            "join_error": error,
+        },
     )
 
 
@@ -145,7 +153,19 @@ async def execute_join(request: Request, upload_id: str):
     sheet_configs = _parse_join_form(form)
 
     file_path = await download_dataset("upload", upload_id, "")
-    joined_df = join_sheets(file_path, sheet_configs)
+
+    try:
+        joined_df = join_sheets(file_path, sheet_configs)
+    except ValueError as e:
+        selected = [c["name"] for c in sheet_configs]
+        return RedirectResponse(
+            url=(
+                f"/dataset/upload/{upload_id}/sheets"
+                f"?name={quote(name)}"
+                f"&error={quote(str(e))}"
+            ),
+            status_code=303,
+        )
 
     if action == "preview":
         preview_rows = joined_df.head(5).to_dict(orient="records")

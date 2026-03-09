@@ -447,6 +447,37 @@ class TestLoadDataframe:
         assert len(df) == 5
 
 
+class TestMalformedFileDetection:
+    """Tests for empty DataFrame detection in load_dataframe (ticket #75)."""
+
+    def test_header_only_csv_raises(self, tmp_path):
+        """CSV with only a header row → empty DataFrame → raises."""
+        csv_file = tmp_path / "empty.csv"
+        csv_file.write_text("a,b,c\n")
+        with pytest.raises(ValueError, match="no readable data rows"):
+            load_dataframe(csv_file)
+
+    def test_header_only_tsv_raises(self, tmp_path):
+        """TSV with only a header row → empty DataFrame → raises."""
+        tsv_file = tmp_path / "empty.tsv"
+        tsv_file.write_text("a\tb\tc\n")
+        with pytest.raises(ValueError, match="no readable data rows"):
+            load_dataframe(tsv_file)
+
+    def test_header_only_fallback_raises(self, tmp_path):
+        """Unknown extension with header-only content → raises via fallback CSV path."""
+        dat_file = tmp_path / "empty.dat"
+        dat_file.write_text("a,b,c\n")
+        with pytest.raises(ValueError, match="no readable data rows"):
+            load_dataframe(dat_file)
+
+    def test_valid_csv_still_loads(self, tmp_path):
+        csv_file = tmp_path / "good.csv"
+        csv_file.write_text("a,b\n1,2\n3,4\n")
+        df = load_dataframe(csv_file)
+        assert len(df) == 2
+
+
 class TestOpenMLArffRemoval:
     """Tests for _download_openml() ARFF fallback removal."""
 

@@ -5,6 +5,12 @@
     <h2>{{ name or "Excel File" }} — Select Sheets</h2>
     <p>This file contains <strong>{{ sheets|length }}</strong> worksheets. Select one to analyze, or select multiple to join them.</p>
 
+    {% if join_error %}
+    <article aria-label="error" style="background: var(--del-color); padding: 1rem; border-radius: 4px; margin-bottom: 1rem;">
+        <strong>Join failed:</strong> {{ join_error }}
+    </article>
+    {% endif %}
+
     <form method="post" action="/dataset/upload/{{ upload_id }}/sheets" id="sheet-form">
         <input type="hidden" name="name" value="{{ name }}">
 

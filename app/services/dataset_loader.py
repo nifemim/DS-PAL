@@ -510,15 +510,22 @@ def _classify_column(series) -> dict:
     if pd.api.types.is_datetime64_any_dtype(dtype):
         return {"cardinality": None, "suggested_encoding": "datetime", "is_id_like": False}
 
-    # Datetime-as-string: >50% values parse as dates
+    # Datetime-as-string: sample up to 50 values to avoid slow parsing
     if dtype == object and len(non_null) > 0:
         try:
-            parsed = pd.to_datetime(non_null, errors="coerce")
-            date_ratio = parsed.notna().sum() / len(non_null)
+            sample = non_null.head(50)
+            parsed = pd.to_datetime(sample, errors="coerce", infer_datetime_format=True)
+            date_ratio = parsed.notna().sum() / len(sample)
             if date_ratio > 0.5:
                 return {"cardinality": None, "suggested_encoding": "datetime", "is_id_like": False}
         except Exception:
             pass
+
+    # Guard against columns with unhashable values (lists, dicts from JSON)
+    if dtype == object and len(non_null) > 0:
+        sample_val = non_null.iloc[0]
+        if isinstance(sample_val, (list, dict)):
+            return {"cardinality": None, "suggested_encoding": None, "is_id_like": False}
 
     # Boolean columns
     if dtype == bool or (dtype == object and set(non_null.unique()) <= {True, False}):

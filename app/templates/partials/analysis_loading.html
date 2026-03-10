@@ -10,7 +10,11 @@
         <div aria-busy="true" style="margin-bottom: 2rem;"></div>
         <h3>Analyzing {{ dataset_name }}...</h3>
         <p>Running <strong>{{ algorithm|upper }}</strong> clustering analysis.</p>
-        <p><small>This may take a few seconds depending on the dataset size.</small></p>
+        {% if step %}
+        <p><small>{{ step }}...</small></p>
+        {% else %}
+        <p><small>Starting analysis...</small></p>
+        {% endif %}
     </div>
 </div>
 
@@ -18,7 +22,7 @@
 // Stop polling after 3 minutes and show timeout error
 (function() {
     var start = Date.now();
-    var timeout = 180000; // 3 minutes
+    var timeout = 300000; // 5 minutes
     var el = document.getElementById("analysis-polling");
     if (!el) return;
     var check = setInterval(function() {

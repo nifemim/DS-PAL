@@ -274,17 +274,18 @@ def preprocess(
 def reduce_dimensions(
     scaled_df,
 ) -> Tuple:
-    """PCA to 2D and 3D for visualization."""
+    """PCA to 2D and 3D for visualization. Single fit, slice for 2D."""
     import numpy as np
     from sklearn.decomposition import PCA
     n_features = scaled_df.shape[1]
     values = scaled_df.values
 
-    pca_2d = PCA(n_components=min(2, n_features))
-    coords_2d = pca_2d.fit_transform(values)
+    n_components = min(3, n_features)
+    pca = PCA(n_components=n_components)
+    coords = pca.fit_transform(values)
 
-    pca_3d = PCA(n_components=min(3, n_features))
-    coords_3d = pca_3d.fit_transform(values)
+    coords_2d = coords[:, :2]
+    coords_3d = coords
 
     return coords_2d, coords_3d
 
@@ -302,11 +303,14 @@ def find_optimal_k(scaled_df) -> int:
 
     for k in range(2, max_k + 1):
         try:
-            km = KMeans(n_clusters=k, n_init=10, random_state=42)
+            km = KMeans(n_clusters=k, n_init=3, random_state=42)
             labels = km.fit_predict(scaled_df.values)
             if len(set(labels)) < 2:
                 continue
-            score = silhouette_score(scaled_df.values, labels)
+            score = silhouette_score(
+                scaled_df.values, labels,
+                sample_size=min(n, 1000), random_state=42,
+            )
             if score > best_score:
                 best_score = score
                 best_k = k
@@ -345,9 +349,9 @@ def cluster(
     if algorithm == "kmeans":
         if n_clusters is None:
             n_clusters = find_optimal_k(scaled_df)
-        model = KMeans(n_clusters=n_clusters, n_init=10, random_state=42)
+        model = KMeans(n_clusters=n_clusters, n_init=5, random_state=42)
         labels = model.fit_predict(values)
-        params = {"n_clusters": n_clusters, "n_init": 10}
+        params = {"n_clusters": n_clusters, "n_init": 5}
 
     elif algorithm == "dbscan":
         min_samples = max(5, len(values) // 100)

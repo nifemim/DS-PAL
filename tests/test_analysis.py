@@ -71,6 +71,15 @@ def test_reduce_dimensions(iris_df):
     assert coords_3d.shape == (150, 3)
 
 
+def test_reduce_dimensions_2_features(iris_df):
+    """PCA with exactly 2 features produces 2-col coords for both 2D and 3D."""
+    prep = preprocess(iris_df, columns=iris_df.columns[:2].tolist())
+    coords_2d, coords_3d = reduce_dimensions(prep.scaled_df)
+    assert coords_2d.shape == (150, 2)
+    # Only 2 components available, so 3D coords also have 2 columns
+    assert coords_3d.shape == (150, 2)
+
+
 def test_find_optimal_k(iris_df):
     prep = preprocess(iris_df)
     k = find_optimal_k(prep.scaled_df)

@@ -4,12 +4,16 @@ import gc
 import logging
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from typing import List, Optional
 
 from urllib.parse import quote
 
 from fastapi import APIRouter, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
+
+# Dedicated executor so analysis doesn't compete with the default pool
+_analysis_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="analysis")
 
 from app.config import settings
 from app.main import templates
@@ -27,13 +31,20 @@ router = APIRouter(tags=["analysis"])
 
 async def _run_analysis_task(app, analysis_id: str, params: dict):
     """Background task: download, analyze, generate charts."""
-    try:
-        file_path = await download_dataset(params["source"], params["dataset_id"], params["url"])
-        df = load_dataframe(file_path)
+    def set_step(step: str):
+        entry = app.state.pending_analyses.get(analysis_id)
+        if entry:
+            entry["step"] = step
 
+    try:
+        set_step("Downloading dataset")
+        file_path = await download_dataset(params["source"], params["dataset_id"], params["url"])
+
+        set_step("Analyzing data")
         loop = asyncio.get_event_loop()
+        df = await loop.run_in_executor(_analysis_executor, lambda: load_dataframe(file_path))
         analysis = await loop.run_in_executor(
-            None,
+            _analysis_executor,
             lambda: analysis_engine.run(
                 df=df,
                 dataset_name=params["name"] or params["dataset_id"],
@@ -53,7 +64,8 @@ async def _run_analysis_task(app, analysis_id: str, params: dict):
         gc.collect()
 
         analysis.dataset_description = params.get("dataset_description", "")
-        charts = await loop.run_in_executor(None, lambda: generate_all(analysis))
+        set_step("Generating charts")
+        charts = await loop.run_in_executor(_analysis_executor, lambda: generate_all(analysis))
 
         # Replace the pending entry with completed results
         app.state.pending_analyses[analysis_id] = {
@@ -141,6 +153,7 @@ async def analysis_detail(request: Request, analysis_id: str):
                     "analysis_id": analysis_id,
                     "dataset_name": pending.get("dataset_name", ""),
                     "algorithm": pending.get("algorithm", ""),
+                    "step": pending.get("step", ""),
                 },
             )
 
